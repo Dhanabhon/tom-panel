@@ -1,0 +1,69 @@
+{{define "login"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <header class="auth-top">
+      <a class="brand" href="/login">{{template "brand" .}}</a>
+      <span class="access-chip">Private access · SSH tunnel</span>
+    </header>
+
+    <section class="auth-center" aria-labelledby="auth-title">
+      <div class="auth-card">
+        {{if .Setup}}
+        <header>
+          <p class="eyebrow">Single administrator</p>
+          <h1 id="auth-title">Secure this server</h1>
+          <p>Create the only Panel administrator, then save the TOTP secret and recovery codes offline.</p>
+        </header>
+        <form class="form-stack" data-setup-form hidden>
+          <input name="setup_token" type="hidden">
+          <label class="field"><span>Username</span><input name="username" type="text" autocomplete="username" required></label>
+          <label class="field"><span>Password</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required><small>12–128 characters; spaces and Unicode are allowed.</small></label>
+          <p class="form-error" data-form-error role="alert" hidden>Setup could not be completed. Check the URL and values, then try again.</p>
+          <button class="btn primary block" type="submit">Create administrator</button>
+        </form>
+        <p class="form-error" data-setup-missing role="alert" hidden>No setup token was found. Run <code>tompanel setup-url</code> again in an interactive VPS terminal, then open the complete URL with JavaScript enabled.</p>
+        <noscript><p class="form-error" role="alert">Setup needs JavaScript so the token can stay in the URL fragment. Enable JavaScript, run <code>tompanel setup-url</code> again, and open the complete URL.</p></noscript>
+        <section class="enrollment" data-enrollment hidden aria-live="polite">
+          <h2>Save these offline now</h2>
+          <p>TomPanel will not show these values again.</p>
+          <dl><dt>TOTP secret</dt><dd class="mono" data-totp-secret></dd><dt>Authenticator URI</dt><dd class="mono break" data-totp-uri></dd></dl>
+          <h3>Recovery codes</h3>
+          <pre data-recovery-codes></pre>
+          <a class="btn primary block" href="/login">Continue to sign in</a>
+        </section>
+        {{else}}
+        <header>
+          <p class="eyebrow">Single administrator</p>
+          <h1 id="auth-title">Welcome back</h1>
+          <p>Sign in to manage this server.</p>
+        </header>
+        <form class="form-stack" data-login-form>
+          <fieldset data-credentials>
+            <legend class="visually-hidden">Administrator credentials</legend>
+            <label class="field"><span>Username</span><input name="username" type="text" autocomplete="username" required autofocus></label>
+            <label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required></label>
+          </fieldset>
+          <fieldset data-factor hidden>
+            <legend class="visually-hidden">Second factor</legend>
+            <label class="field"><span>Verification code</span><input class="mono" name="code" type="text" autocomplete="one-time-code" inputmode="numeric" required disabled><small>Enter the six-digit TOTP code or a recovery code.</small></label>
+            <button class="text-button" type="button" data-use-recovery>Use a recovery code</button>
+          </fieldset>
+          <p class="form-error" data-form-error role="alert" hidden>Unable to sign in. Check your credentials and try again.</p>
+          <button class="btn primary block" type="submit" data-login-submit>Continue securely</button>
+        </form>
+        {{end}}
+      </div>
+      <dl class="server-context"><dt>Server</dt><dd class="mono">{{.ServerName}}</dd><dt>Endpoint</dt><dd class="mono">Private HTTPS</dd></dl>
+    </section>
+
+    <footer class="auth-foot">
+      <span>Credentials can only be reset from the VPS console.</span>
+      <code>sudo tompanel admin reset-password</code>
+    </footer>
+  </main>
+</body>
+</html>
+{{end}}

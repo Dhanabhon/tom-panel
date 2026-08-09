@@ -1,0 +1,95 @@
+{{define "dashboard"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar">
+      <div><span class="crumb">Server / Dashboard</span><strong class="mono">{{.ServerName}}</strong></div>
+      <form method="post" action="/logout" data-logout>
+        <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+        <button class="btn" type="submit">Sign out</button>
+      </form>
+    </header>
+
+    <main class="content">
+      <header class="page-head">
+        <div><p class="eyebrow">Operations first</p><h1>Dashboard</h1><p>Durable work remains visible across reloads and daemon restarts.</p></div>
+        <span class="badge good">Private control plane</span>
+      </header>
+
+      <section class="resource-strip" aria-label="Foundation status">
+        <div class="resource"><span>Access</span><strong>Private HTTPS</strong></div>
+        <div class="resource"><span>Authentication</span><strong>Password + TOTP</strong></div>
+        <div class="resource"><span>Job state</span><strong>SQLite · durable</strong></div>
+        <div class="resource"><span>Agent boundary</span><strong>Typed Unix socket</strong></div>
+      </section>
+
+      <div class="dashboard-grid">
+        <div class="stack">
+          <section class="panel" aria-labelledby="demo-title">
+            <header class="panel-head"><div><p class="eyebrow">Approved operation</p><h2 id="demo-title">Control-plane demo</h2></div></header>
+            <form class="panel-body action-form" method="post" action="/jobs/demo">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <label class="field"><span>Message</span><input name="message" maxlength="200" value="Verify the TomPanel agent channel" required><small>Runs an agent health check, then the allowlisted demo operation.</small></label>
+              <button class="btn primary" type="submit">Start durable job</button>
+            </form>
+          </section>
+
+          <section class="panel" aria-labelledby="jobs-title">
+            <header class="panel-head"><h2 id="jobs-title">Recent jobs</h2><span class="stream-state" data-stream-summary aria-live="polite">Persisted state</span></header>
+            {{if .Jobs}}
+            <ol class="job-list">
+              {{range .Jobs}}
+              <li class="job-row{{if eq $.SelectedID .ID}} selected{{end}}" data-job-id="{{.ID}}" data-job-status="{{.Status}}">
+                <div class="job-main"><strong>{{.Kind}}</strong><code>{{.ID}}</code><span>{{jobTime .UpdatedAt}}</span></div>
+                <div class="job-progress" aria-live="polite">
+                  <span class="badge {{statusClass .Status}}" data-job-status-label>{{statusLabel .Status}}</span>
+                  <span class="connection-state" data-connection-state>Persisted</span>
+                </div>
+                {{if .Error}}<p class="job-error" data-job-error>{{.Error}}</p>{{else}}<p class="job-error" data-job-error hidden></p>{{end}}
+                {{if .Steps}}
+                <ol class="step-list">
+                  {{range .Steps}}<li data-step-key="{{.Key}}"><span>{{.Key}}</span><span data-step-status>{{.Status}}</span><span>Attempt {{.AttemptCount}}</span></li>{{end}}
+                </ol>
+                {{end}}
+                {{if canCancel .Status}}
+                <form method="post" action="/jobs/{{.ID}}/cancel">
+                  <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                  <button class="text-button danger" type="submit">Cancel between steps</button>
+                </form>
+                {{end}}
+              </li>
+              {{end}}
+            </ol>
+            {{else}}
+            <div class="empty-state"><h3>No jobs yet</h3><p>Start the allowlisted demo to verify durable progress and the agent channel.</p></div>
+            {{end}}
+          </section>
+
+          <section class="panel" aria-labelledby="sites-title">
+            <header class="panel-head"><h2 id="sites-title">Sites</h2></header>
+            <div class="empty-state"><h3>No managed sites</h3><p>The foundation slice does not expose site controls until the site model is installed.</p></div>
+          </section>
+        </div>
+
+        <aside class="panel attention" aria-labelledby="attention-title">
+          <header class="panel-head"><h2 id="attention-title">Needs attention</h2></header>
+          <div class="panel-body">
+            {{if .Jobs}}
+            <p>Failed and cancelling jobs remain in Recent jobs with their persisted error and retry state.</p>
+            {{else}}
+            <p>No job failures are recorded.</p>
+            {{end}}
+            <p class="notice"><strong>Foundation boundary</strong><span>Resource metrics and site health are omitted until real collectors exist.</span></p>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="footer-line"><span>TomPanel foundation control plane</span><span>Private access recommended</span></footer>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

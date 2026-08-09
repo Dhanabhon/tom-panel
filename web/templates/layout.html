@@ -1,0 +1,27 @@
+{{define "head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+{{end}}
+
+{{define "brand"}}<span class="brand-mark" aria-hidden="true">TP</span><span>TomPanel</span>{{end}}
+
+{{define "navigation"}}
+<nav class="side" aria-label="Main navigation">
+  <a class="brand" href="/">{{template "brand" .}}</a>
+  <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="main-nav">Menu</button>
+  <div class="nav-content" id="main-nav">
+    <p class="nav-label">Manage</p>
+    <a class="nav-link active" href="/" aria-current="page">Dashboard</a>
+    <p class="nav-note">Site and service controls appear as managed resources are added.</p>
+    <div class="server-mini">
+      <span class="muted">Server</span>
+      <strong class="mono">{{.ServerName}}</strong>
+      <span class="badge good">Private access</span>
+    </div>
+  </div>
+</nav>
+{{end}}
