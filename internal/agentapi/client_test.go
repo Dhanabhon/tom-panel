@@ -1,6 +1,7 @@
 package agentapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -10,6 +11,45 @@ import (
 	"testing"
 	"time"
 )
+
+type readyConn struct {
+	bytes.Buffer
+}
+
+func (*readyConn) Close() error                     { return nil }
+func (*readyConn) LocalAddr() net.Addr              { return nil }
+func (*readyConn) RemoteAddr() net.Addr             { return nil }
+func (*readyConn) SetDeadline(time.Time) error      { return nil }
+func (*readyConn) SetReadDeadline(time.Time) error  { return nil }
+func (*readyConn) SetWriteDeadline(time.Time) error { return nil }
+
+func TestReadFrameRejectsAlreadyCancelledContext(t *testing.T) {
+	conn := &readyConn{}
+	if err := WriteFrame(context.Background(), conn, Response{Version: ProtocolVersion, ID: "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var response Response
+	if err := ReadFrame(ctx, conn, &response); !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestWriteFrameRejectsAlreadyCancelledContext(t *testing.T) {
+	conn := &readyConn{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := WriteFrame(ctx, conn, Request{Version: ProtocolVersion, ID: "ready"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v", err)
+	}
+	if conn.Len() != 0 {
+		t.Fatal("cancelled write reached the connection")
+	}
+}
 
 func TestRejectsOversizedFrame(t *testing.T) {
 	server, client := net.Pipe()

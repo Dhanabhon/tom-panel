@@ -121,6 +121,29 @@ func TestServeOneHonorsContextDeadline(t *testing.T) {
 	}
 }
 
+func TestNewServerBoundsIdlePeer(t *testing.T) {
+	server, client := net.Pipe()
+	t.Cleanup(func() { server.Close() })
+	t.Cleanup(func() { client.Close() })
+	srv := NewServer(server, 1001)
+	srv.peerCredentials = func(net.Conn) (PeerCredentials, error) {
+		return PeerCredentials{UID: 1001}, nil
+	}
+	go func() {
+		time.Sleep(3 * time.Second)
+		_ = client.Close()
+	}()
+
+	started := time.Now()
+	err := srv.ServeOne(context.Background())
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > 2500*time.Millisecond {
+		t.Fatalf("idle peer held the server for %v", elapsed)
+	}
+}
+
 func TestReadsLinuxPeerCredentials(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("SO_PEERCRED is Linux-only")

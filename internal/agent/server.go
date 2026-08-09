@@ -5,9 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 )
+
+// ponytail: current operations are local-only; split framing and operation budgets when long-running operations land.
+const requestTimeout = 2 * time.Second
 
 var (
 	ErrUnauthorizedPeer           = errors.New("unauthorized agent peer")
@@ -37,6 +41,9 @@ func NewServer(conn net.Conn, expectedUID uint32) *Server {
 }
 
 func (s *Server) ServeOne(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
 	credentials, err := s.peerCredentials(s.conn)
 	if err != nil {
 		return fmt.Errorf("read peer credentials: %w", err)

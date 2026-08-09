@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"os/user"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/agent"
 )
@@ -46,12 +48,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer listener.Close()
-	defer os.Remove(socketPath)
+	listener.SetUnlinkOnClose(false)
+	ownedSocket, err := os.Lstat(socketPath)
+	if err != nil {
+		_ = listener.Close()
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := removeOwnedSocket(socketPath, ownedSocket); err != nil {
+			log.Printf("remove agent socket: %v", err)
+		}
+		_ = listener.Close()
+	}()
 	if err := os.Chown(socketPath, 0, gid); err != nil {
 		log.Fatal(err)
 	}
@@ -63,7 +75,7 @@ func main() {
 	defer stop()
 	go func() {
 		<-ctx.Done()
-		_ = listener.Close()
+		_ = listener.SetDeadline(time.Now())
 	}()
 
 	log.Printf("tompanel-agent listening on %s", socketPath)
@@ -95,6 +107,31 @@ func removeStaleSocket(path string) error {
 	}
 	if info.Mode()&os.ModeSocket == 0 {
 		return errors.New("agent socket path exists and is not a socket")
+	}
+	conn, err := net.DialTimeout("unix", path, 100*time.Millisecond)
+	if err == nil {
+		_ = conn.Close()
+		return errors.New("agent socket is already in use")
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if !errors.Is(err, syscall.ECONNREFUSED) {
+		return fmt.Errorf("check existing agent socket: %w", err)
+	}
+	return os.Remove(path)
+}
+
+func removeOwnedSocket(path string, owned os.FileInfo) error {
+	current, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(owned, current) {
+		return nil
 	}
 	return os.Remove(path)
 }

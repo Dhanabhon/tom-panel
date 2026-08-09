@@ -45,6 +45,9 @@ func (e *Error) Error() string {
 }
 
 func ReadFrame(ctx context.Context, conn net.Conn, output any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	stop, err := setReadDeadline(ctx, conn)
 	if err != nil {
 		return err
@@ -71,6 +74,9 @@ func ReadFrame(ctx context.Context, conn net.Conn, output any) error {
 }
 
 func WriteFrame(ctx context.Context, conn net.Conn, input any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	payload, err := json.Marshal(input)
 	if err != nil {
 		return err
