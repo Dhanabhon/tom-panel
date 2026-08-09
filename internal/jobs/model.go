@@ -55,6 +55,7 @@ type Job struct {
 	Kind       string          `json:"kind"`
 	Input      json.RawMessage `json:"input"`
 	Status     Status          `json:"status"`
+	Revision   int64           `json:"revision"`
 	Error      string          `json:"error,omitempty"`
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
@@ -66,10 +67,17 @@ type Job struct {
 type Event struct {
 	JobID          string     `json:"job_id"`
 	Status         Status     `json:"status"`
+	Revision       int64      `json:"revision"`
 	StepKey        string     `json:"step_key,omitempty"`
 	StepStatus     StepStatus `json:"step_status,omitempty"`
 	AttemptCount   int        `json:"attempt_count,omitempty"`
 	RedactedOutput string     `json:"redacted_output,omitempty"`
 	Error          string     `json:"error,omitempty"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+type Audit struct {
+	AdminID int64
+	Action  string
+	Detail  json.RawMessage
 }

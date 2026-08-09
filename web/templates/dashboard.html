@@ -42,7 +42,7 @@
             {{if .Jobs}}
             <ol class="job-list">
               {{range .Jobs}}
-              <li class="job-row{{if eq $.SelectedID .ID}} selected{{end}}" data-job-id="{{.ID}}" data-job-status="{{.Status}}">
+              <li class="job-row{{if eq $.SelectedID .ID}} selected{{end}}" data-job-id="{{.ID}}" data-job-status="{{.Status}}" data-job-revision="{{.Revision}}">
                 <div class="job-main"><strong>{{.Kind}}</strong><code>{{.ID}}</code><span>{{jobTime .UpdatedAt}}</span></div>
                 <div class="job-progress" aria-live="polite">
                   <span class="badge {{statusClass .Status}}" data-job-status-label>{{statusLabel .Status}}</span>

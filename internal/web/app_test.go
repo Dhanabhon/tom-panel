@@ -82,5 +82,6 @@ func newTestApp(t *testing.T) *App {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(app.Close)
 	return app
 }

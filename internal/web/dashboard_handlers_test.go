@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,7 +79,7 @@ func TestDashboardReloadShowsDurableJob(t *testing.T) {
 			t.Fatalf("reload %d status = %d, body = %q", reload, recorder.Code, recorder.Body)
 		}
 		body := recorder.Body.String()
-		if !strings.Contains(body, id) || !strings.Contains(body, string(jobs.StatusSucceeded)) {
+		if !strings.Contains(body, id) || !strings.Contains(body, string(jobs.StatusSucceeded)) || !strings.Contains(body, `data-job-revision="`) {
 			t.Fatalf("reload %d body omitted durable job: %q", reload, body)
 		}
 	}
@@ -96,7 +97,7 @@ func TestLoginPageHasPasswordThenTOTPFlow(t *testing.T) {
 		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body)
 	}
 	body := recorder.Body.String()
-	for _, required := range []string{`name="username"`, `name="password"`, `name="code"`, `autocomplete="one-time-code"`} {
+	for _, required := range []string{`method="post"`, `action="/login"`, `name="username"`, `name="password"`, `name="code"`, `autocomplete="one-time-code"`} {
 		if !strings.Contains(body, required) {
 			t.Fatalf("login page omitted %q", required)
 		}
@@ -119,6 +120,11 @@ func TestSetupPageNeverRendersFragmentToken(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), "must-not-render") {
 		t.Fatal("setup token was rendered into HTML")
+	}
+	for _, required := range []string{`method="post"`, `action="/setup"`} {
+		if !strings.Contains(recorder.Body.String(), required) {
+			t.Fatalf("setup form omitted %q", required)
+		}
 	}
 }
 
@@ -159,6 +165,101 @@ func TestAuditEventRedactsDemoInput(t *testing.T) {
 	}
 	if strings.Contains(details, "registered-secret") || !strings.Contains(details, "[REDACTED]") {
 		t.Fatalf("audit details = %q", details)
+	}
+}
+
+func TestEnqueueRollsBackWhenAuditInsertFails(t *testing.T) {
+	database, service, manager, recoveryCode := newDashboardRuntime(t)
+	registerWebTestJob(t, manager)
+	rejectAuditWrites(t, database)
+	session := loginDashboardUser(t, service, recoveryCode)
+	recorder := postJobForm(t, NewJobsHandlers(database, service, manager).Handler(), session, "/jobs/demo", "message=safe")
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body)
+	}
+	got, err := manager.List(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("jobs after audit rollback = %#v", got)
+	}
+}
+
+func TestCancelRollsBackWhenAuditInsertFails(t *testing.T) {
+	database, service, manager, recoveryCode := newDashboardRuntime(t)
+	registerWebTestJob(t, manager)
+	def, err := manager.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := manager.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectAuditWrites(t, database)
+	session := loginDashboardUser(t, service, recoveryCode)
+	recorder := postJobForm(t, NewJobsHandlers(database, service, manager).Handler(), session, "/jobs/"+id+"/cancel", "")
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body)
+	}
+	job, err := manager.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Status != jobs.StatusQueued {
+		t.Fatalf("status after audit rollback = %q", job.Status)
+	}
+}
+
+func TestSSESkipsEventsNotNewerThanSnapshot(t *testing.T) {
+	if sseEventAfter(7, jobs.Event{Revision: 7}) {
+		t.Fatal("event at snapshot revision was accepted")
+	}
+	if sseEventAfter(7, jobs.Event{Revision: 6}) {
+		t.Fatal("event older than snapshot was accepted")
+	}
+	if !sseEventAfter(7, jobs.Event{Revision: 8}) {
+		t.Fatal("new event was rejected")
+	}
+}
+
+func TestOpenSSEClosesAfterSessionRevocation(t *testing.T) {
+	database, service, manager, recoveryCode := newDashboardRuntime(t)
+	registerWebTestJob(t, manager)
+	def, err := manager.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := manager.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := loginDashboardUser(t, service, recoveryCode)
+	routes := NewJobsHandlers(database, service, manager)
+	routes.sessionCheckInterval = time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/jobs/"+id+"/events", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: session.ID})
+	writer := newFlushSignalRecorder()
+	done := make(chan struct{})
+	go func() {
+		routes.Handler().ServeHTTP(writer, req)
+		close(done)
+	}()
+	select {
+	case <-writer.flushed:
+	case <-time.After(time.Second):
+		t.Fatal("SSE did not open")
+	}
+	if err := service.Logout(context.Background(), session.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("SSE remained open after logout")
 	}
 }
 
@@ -218,6 +319,32 @@ func webTestStep() jobs.Step {
 	}}
 }
 
+func rejectAuditWrites(t *testing.T, database *store.Store) {
+	t.Helper()
+	if err := database.Tx(context.Background(), func(tx *sql.Tx) error {
+		_, err := tx.Exec(`CREATE TRIGGER reject_audit BEFORE INSERT ON audit_events BEGIN SELECT RAISE(FAIL, 'audit rejected'); END`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func postJobForm(t *testing.T, handler http.Handler, session auth.Session, path, values string) *httptest.ResponseRecorder {
+	t.Helper()
+	if values != "" {
+		values += "&"
+	}
+	values += "csrf_token=" + session.CSRFToken
+	req := httptest.NewRequest(http.MethodPost, "https://panel.example"+path, strings.NewReader(values))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "https://panel.example")
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: session.ID})
+	req.AddCookie(&http.Cookie{Name: auth.CSRFCookieName, Value: session.CSRFToken})
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	return recorder
+}
+
 type cancelOnFlush struct {
 	*httptest.ResponseRecorder
 	cancel context.CancelFunc
@@ -226,4 +353,19 @@ type cancelOnFlush struct {
 func (r cancelOnFlush) Flush() {
 	r.ResponseRecorder.Flush()
 	r.cancel()
+}
+
+type flushSignalRecorder struct {
+	*httptest.ResponseRecorder
+	flushed chan struct{}
+	once    sync.Once
+}
+
+func newFlushSignalRecorder() *flushSignalRecorder {
+	return &flushSignalRecorder{ResponseRecorder: httptest.NewRecorder(), flushed: make(chan struct{})}
+}
+
+func (r *flushSignalRecorder) Flush() {
+	r.ResponseRecorder.Flush()
+	r.once.Do(func() { close(r.flushed) })
 }

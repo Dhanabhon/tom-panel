@@ -11,8 +11,8 @@ import (
 const redacted = "[REDACTED]"
 
 var (
-	bearerPattern     = regexp.MustCompile(`(?i)(\bauthorization\b\s*:\s*bearer\s+)[^\s,;]+`)
-	credentialPattern = regexp.MustCompile(`(?i)(\b(?:password|passwd|token|secret|api[_-]?key|authorization)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)`)
+	authorizationPattern = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)(?:basic|bearer)\s+[^\s,;]+`)
+	credentialPattern    = regexp.MustCompile(`(?i)(\b(?:[a-z0-9]+[_-])*(?:password|passwd|token|secret|api[_-]?key|private[_-]?key|credential|authorization)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)`)
 )
 
 type Redactor struct {
@@ -50,7 +50,7 @@ func (r *Redactor) Redact(value string) string {
 	for _, secret := range secrets {
 		value = strings.ReplaceAll(value, secret, redacted)
 	}
-	value = bearerPattern.ReplaceAllString(value, `${1}`+redacted)
+	value = authorizationPattern.ReplaceAllString(value, `${1}`+redacted)
 	return credentialPattern.ReplaceAllString(value, `${1}`+redacted)
 }
 
@@ -103,10 +103,10 @@ func redactJSONValue(r *Redactor, value any) {
 
 func isCredentialKey(key string) bool {
 	key = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(key, "_", ""), "-", ""))
-	switch key {
-	case "password", "passwd", "token", "secret", "apikey", "authorization":
-		return true
-	default:
-		return false
+	for _, marker := range []string{"password", "passwd", "token", "secret", "apikey", "privatekey", "credential", "authorization"} {
+		if strings.Contains(key, marker) {
+			return true
+		}
 	}
+	return false
 }

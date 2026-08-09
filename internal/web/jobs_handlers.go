@@ -1,8 +1,6 @@
 package web
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,13 +14,14 @@ import (
 )
 
 type JobsHandlers struct {
-	store *store.Store
-	jobs  *jobs.Manager
-	mux   *http.ServeMux
+	auth                 *auth.Service
+	jobs                 *jobs.Manager
+	mux                  *http.ServeMux
+	sessionCheckInterval time.Duration
 }
 
-func NewJobsHandlers(database *store.Store, service *auth.Service, manager *jobs.Manager) *JobsHandlers {
-	h := &JobsHandlers{store: database, jobs: manager, mux: http.NewServeMux()}
+func NewJobsHandlers(_ *store.Store, service *auth.Service, manager *jobs.Manager) *JobsHandlers {
+	h := &JobsHandlers{auth: service, jobs: manager, mux: http.NewServeMux(), sessionCheckInterval: 15 * time.Second}
 	h.mux.Handle("POST /jobs/demo", service.RequireSession(service.RequireCSRF(http.HandlerFunc(h.enqueueDemo))))
 	h.mux.Handle("POST /jobs/{jobID}/cancel", service.RequireSession(service.RequireCSRF(http.HandlerFunc(h.cancel))))
 	h.mux.Handle("GET /jobs/{jobID}/events", service.RequireSession(http.HandlerFunc(h.events)))
@@ -52,21 +51,36 @@ func (h *JobsHandlers) enqueueDemo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "job could not be created", http.StatusInternalServerError)
 		return
 	}
-	id, err := h.jobs.Enqueue(r.Context(), def)
+	session, ok := auth.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	id, err := h.jobs.EnqueueWithAudit(r.Context(), def, jobs.Audit{
+		AdminID: session.AdminID,
+		Action:  "job.demo.enqueued",
+		Detail:  input,
+	})
 	if err != nil {
 		http.Error(w, "job could not be created", http.StatusInternalServerError)
 		return
 	}
-	if err := h.recordAudit(r.Context(), r, "job.demo.enqueued", id, input); err != nil {
-		http.Error(w, "job audit event could not be recorded", http.StatusInternalServerError)
-		return
-	}
-	go h.runQueued()
+	h.jobs.Wake()
 	http.Redirect(w, r, "/?job="+id, http.StatusSeeOther)
 }
 
 func (h *JobsHandlers) cancel(w http.ResponseWriter, r *http.Request) {
-	if err := h.jobs.Cancel(r.Context(), r.PathValue("jobID")); err != nil {
+	session, ok := auth.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	jobID := r.PathValue("jobID")
+	if err := h.jobs.CancelWithAudit(r.Context(), jobID, jobs.Audit{
+		AdminID: session.AdminID,
+		Action:  "job.cancel.requested",
+		Detail:  json.RawMessage(`{}`),
+	}); err != nil {
 		if errors.Is(err, jobs.ErrJobNotFound) {
 			http.NotFound(w, r)
 			return
@@ -74,11 +88,7 @@ func (h *JobsHandlers) cancel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "job could not be cancelled", http.StatusInternalServerError)
 		return
 	}
-	if err := h.recordAudit(r.Context(), r, "job.cancel.requested", r.PathValue("jobID"), json.RawMessage(`{}`)); err != nil {
-		http.Error(w, "job audit event could not be recorded", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/?job="+r.PathValue("jobID"), http.StatusSeeOther)
+	http.Redirect(w, r, "/?job="+jobID, http.StatusSeeOther)
 }
 
 func (h *JobsHandlers) events(w http.ResponseWriter, r *http.Request) {
@@ -107,17 +117,35 @@ func (h *JobsHandlers) events(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	flusher.Flush()
+	lastRevision := snapshot.Revision
 	keepAlive := time.NewTicker(20 * time.Second)
 	defer keepAlive.Stop()
+	sessionChecks := time.NewTicker(h.sessionCheckInterval)
+	defer sessionChecks.Stop()
+	sessionCookie, err := r.Cookie(auth.SessionCookieName)
+	if err != nil {
+		return
+	}
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case event, ok := <-events:
-			if !ok || writeSSE(w, event) != nil {
+			if !ok {
 				return
 			}
+			if !sseEventAfter(lastRevision, event) {
+				continue
+			}
+			if writeSSE(w, event) != nil {
+				return
+			}
+			lastRevision = event.Revision
 			flusher.Flush()
+		case <-sessionChecks.C:
+			if !h.auth.SessionValidNoTouch(r.Context(), sessionCookie.Value) {
+				return
+			}
 		case <-keepAlive.C:
 			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
 				return
@@ -127,29 +155,8 @@ func (h *JobsHandlers) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *JobsHandlers) recordAudit(ctx context.Context, r *http.Request, action, targetID string, detail json.RawMessage) error {
-	session, ok := auth.CurrentSession(r.Context())
-	if !ok {
-		return auth.ErrInvalidSession
-	}
-	redactedDetail := h.jobs.Redactor().RedactJSON(detail)
-	return h.store.Tx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO audit_events(admin_id, action, target_kind, target_id, detail_json, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)`, session.AdminID, action, "job", targetID, []byte(redactedDetail), time.Now().UTC().Unix())
-		return err
-	})
-}
-
-func (h *JobsHandlers) runQueued() {
-	for {
-		err := h.jobs.RunNext(context.Background())
-		if errors.Is(err, jobs.ErrNoQueuedJobs) {
-			return
-		}
-		if err != nil && !errors.Is(err, jobs.ErrStepFailed) {
-			return
-		}
-	}
+func sseEventAfter(revision int64, event jobs.Event) bool {
+	return event.Revision > revision
 }
 
 func writeSSE(w http.ResponseWriter, event jobs.Event) error {
@@ -157,6 +164,6 @@ func writeSSE(w http.ResponseWriter, event jobs.Event) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(w, "event: job\ndata: %s\n\n", payload)
+	_, err = fmt.Fprintf(w, "id: %d\nevent: job\ndata: %s\n\n", event.Revision, payload)
 	return err
 }

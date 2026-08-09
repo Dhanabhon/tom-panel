@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -60,7 +61,7 @@ func (s *Service) RequireSession(next http.Handler) http.Handler {
 
 func (s *Service) RequireOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !sameHTTPSOrigin(r) {
+		if !sameAllowedOrigin(r) {
 			http.Error(w, "request rejected", http.StatusForbidden)
 			return
 		}
@@ -75,7 +76,7 @@ func (s *Service) RequireCSRF(next http.Handler) http.Handler {
 			return
 		}
 		current, ok := r.Context().Value(sessionContextKey{}).(requestSession)
-		if !ok || !sameHTTPSOrigin(r) {
+		if !ok || !sameAllowedOrigin(r) {
 			http.Error(w, "request rejected", http.StatusForbidden)
 			return
 		}
@@ -123,23 +124,37 @@ func csrfMatches(want []byte, token string) bool {
 	return len(want) == len(digest) && subtle.ConstantTimeCompare(want, digest[:]) == 1
 }
 
-func sameHTTPSOrigin(r *http.Request) bool {
+func sameAllowedOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	parsed, err := url.Parse(origin)
-	if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.User != nil || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.User != nil || parsed.Host == "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return false
 	}
-	requestAuthority, err := url.Parse("https://" + r.Host)
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "https" {
+		ip := net.ParseIP(parsed.Hostname())
+		if scheme != "http" || ip == nil || !ip.IsLoopback() {
+			return false
+		}
+	}
+	requestAuthority, err := url.Parse(scheme + "://" + r.Host)
 	if err != nil || requestAuthority.Hostname() == "" {
 		return false
 	}
 	originPort := parsed.Port()
 	if originPort == "" {
-		originPort = "443"
+		originPort = defaultPort(scheme)
 	}
 	requestPort := requestAuthority.Port()
 	if requestPort == "" {
-		requestPort = "443"
+		requestPort = defaultPort(scheme)
 	}
 	return strings.EqualFold(parsed.Hostname(), requestAuthority.Hostname()) && originPort == requestPort
+}
+
+func defaultPort(scheme string) string {
+	if scheme == "http" {
+		return "80"
+	}
+	return "443"
 }

@@ -17,7 +17,7 @@
           <h1 id="auth-title">Secure this server</h1>
           <p>Create the only Panel administrator, then save the TOTP secret and recovery codes offline.</p>
         </header>
-        <form class="form-stack" data-setup-form hidden>
+        <form class="form-stack" method="post" action="/setup" data-setup-form hidden>
           <input name="setup_token" type="hidden">
           <label class="field"><span>Username</span><input name="username" type="text" autocomplete="username" required></label>
           <label class="field"><span>Password</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required><small>12–128 characters; spaces and Unicode are allowed.</small></label>
@@ -40,7 +40,7 @@
           <h1 id="auth-title">Welcome back</h1>
           <p>Sign in to manage this server.</p>
         </header>
-        <form class="form-stack" data-login-form>
+        <form class="form-stack" method="post" action="/login" data-login-form>
           <fieldset data-credentials>
             <legend class="visually-hidden">Administrator credentials</legend>
             <label class="field"><span>Username</span><input name="username" type="text" autocomplete="username" required autofocus></label>
@@ -56,7 +56,7 @@
         </form>
         {{end}}
       </div>
-      <dl class="server-context"><dt>Server</dt><dd class="mono">{{.ServerName}}</dd><dt>Endpoint</dt><dd class="mono">Private HTTPS</dd></dl>
+      <dl class="server-context"><dt>Server</dt><dd class="mono">{{.ServerName}}</dd><dt>Endpoint</dt><dd class="mono">Loopback HTTP · SSH tunnel</dd></dl>
     </section>
 
     <footer class="auth-foot">

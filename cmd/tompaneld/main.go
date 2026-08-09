@@ -23,5 +23,7 @@ func main() {
 	}
 
 	log.Printf("tompaneld listening on %s", cfg.Listen)
-	log.Fatal(http.ListenAndServe(cfg.Listen, app.Handler()))
+	err = http.ListenAndServe(cfg.Listen, app.Handler())
+	app.Close()
+	log.Fatal(err)
 }

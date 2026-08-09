@@ -115,6 +115,20 @@ func TestRuntimeMigrationsConsumeCanonicalFS(t *testing.T) {
 	if exists != 1 {
 		t.Fatal("canonical migration did not create admins")
 	}
+	if _, err := db.Exec(`INSERT INTO jobs(id, kind, input_json, status, created_at, updated_at)
+		VALUES ('job-1', 'test', '{}', 'queued', 1, 1)`); err != nil {
+		t.Fatalf("insert job with default revision: %v", err)
+	}
+	var revision int64
+	if err := db.QueryRow("SELECT revision FROM jobs WHERE id = 'job-1'").Scan(&revision); err != nil {
+		t.Fatal(err)
+	}
+	if revision != 1 {
+		t.Fatalf("default job revision = %d, want 1", revision)
+	}
+	if _, err := db.Exec("UPDATE jobs SET revision = 0 WHERE id = 'job-1'"); err == nil {
+		t.Fatal("job revision accepted a non-positive value")
+	}
 	if _, err := canonical.FS.ReadFile(name); err != nil {
 		t.Fatalf("applied migration is not in canonical FS: %v", err)
 	}

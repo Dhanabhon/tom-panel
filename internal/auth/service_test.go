@@ -388,6 +388,20 @@ func TestSessionIdleAndAbsoluteExpiry(t *testing.T) {
 	})
 }
 
+func TestSessionValidNoTouchDoesNotExtendIdleExpiry(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	svc, _, secret := seededAuthAt(t, &now)
+	session := login(t, svc, secret)
+	now = now.Add(20 * time.Minute)
+	if !svc.SessionValidNoTouch(context.Background(), session.ID) {
+		t.Fatal("valid session was rejected")
+	}
+	now = now.Add(10 * time.Minute)
+	if svc.SessionValidNoTouch(context.Background(), session.ID) {
+		t.Fatal("no-touch validation extended idle expiry")
+	}
+}
+
 func TestLoginThrottleDelayIsBounded(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	svc, _, _ := seededAuthAt(t, &now)

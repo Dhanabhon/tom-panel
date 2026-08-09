@@ -327,6 +327,11 @@ func (s *Service) SessionValid(ctx context.Context, sessionID string) bool {
 	return err == nil
 }
 
+func (s *Service) SessionValidNoTouch(ctx context.Context, sessionID string) bool {
+	_, err := s.session(ctx, sessionID, false)
+	return err == nil
+}
+
 func (s *Service) Logout(ctx context.Context, sessionID string) error {
 	digest := tokenHash(sessionID)
 	return s.store.Tx(ctx, func(tx *sql.Tx) error {

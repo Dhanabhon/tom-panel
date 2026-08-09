@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/store"
 )
@@ -192,6 +194,234 @@ func TestPersistedStepResultIsRedacted(t *testing.T) {
 		if strings.Contains(persisted, secret) {
 			t.Fatalf("persisted step state contains %q: %q", secret, persisted)
 		}
+	}
+}
+
+func TestStepStartAtomicallyHonorsCancellingParent(t *testing.T) {
+	m, _ := newTestManager(t, []Step{pass("one")})
+	def, err := m.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := m.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.claimNext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Cancel(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.startStep(context.Background(), id, "one"); !errors.Is(err, errJobCancelled) {
+		t.Fatalf("start error = %v, want cancellation", err)
+	}
+	job, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Status != StatusCancelled || job.Steps[0].AttemptCount != 0 {
+		t.Fatalf("job after start gate = %#v", job)
+	}
+}
+
+func TestEnqueueAndAuditRollbackTogether(t *testing.T) {
+	m, _ := newTestManager(t, []Step{pass("one")})
+	def, err := m.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.EnqueueWithAudit(context.Background(), def, Audit{AdminID: 999, Action: "job.test", Detail: json.RawMessage(`{}`)}); err == nil {
+		t.Fatal("enqueue survived audit failure")
+	}
+	got, err := m.List(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("jobs after rollback = %#v", got)
+	}
+}
+
+func TestCancelAndAuditRollbackTogether(t *testing.T) {
+	m, _ := newTestManager(t, []Step{pass("one")})
+	def, err := m.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := m.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.CancelWithAudit(context.Background(), id, Audit{AdminID: 999, Action: "job.cancel", Detail: json.RawMessage(`{}`)}); err == nil {
+		t.Fatal("cancel survived audit failure")
+	}
+	job, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Status != StatusQueued {
+		t.Fatalf("status after rollback = %q", job.Status)
+	}
+}
+
+func TestEnqueuePersistsNormalizedInputAndRebuildsFromIt(t *testing.T) {
+	database := openTestStore(t)
+	m := NewManager(database, NewRedactor("registered-value"))
+	var builds []string
+	if err := m.Register("test", func(input json.RawMessage) (Definition, error) {
+		builds = append(builds, string(input))
+		return Definition{Kind: "test", Input: input, Steps: []Step{pass("one")}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	original := json.RawMessage(`{"access_token":"one","client_secret":"two","authorization":"Basic dGhyZWU=","message":"registered-value"}`)
+	def, err := m.Build("test", original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := m.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"one", "two", "dGhyZWU=", "registered-value"} {
+		if strings.Contains(string(job.Input), secret) {
+			t.Fatalf("persisted input contains %q: %s", secret, job.Input)
+		}
+	}
+	if got := builds[len(builds)-1]; got != string(job.Input) {
+		t.Fatalf("execution rebuilt from %q, persisted %q", got, job.Input)
+	}
+}
+
+func TestEnqueueRejectsUnregisteredDefinition(t *testing.T) {
+	m := NewManager(openTestStore(t))
+	_, err := m.Enqueue(context.Background(), Definition{Kind: "missing", Input: json.RawMessage(`{}`), Steps: []Step{pass("one")}})
+	if err == nil {
+		t.Fatal("unregistered job was accepted")
+	}
+}
+
+func TestWorkerRunsJobsSeriallyAndStops(t *testing.T) {
+	database := openTestStore(t)
+	m := NewManager(database)
+	var active, maximum, completed atomic.Int32
+	step := Step{Key: "run", Run: func(context.Context) (json.RawMessage, error) {
+		current := active.Add(1)
+		for current > maximum.Load() && !maximum.CompareAndSwap(maximum.Load(), current) {
+		}
+		time.Sleep(5 * time.Millisecond)
+		active.Add(-1)
+		completed.Add(1)
+		return json.RawMessage(`{}`), nil
+	}}
+	if err := m.Register("test", func(input json.RawMessage) (Definition, error) {
+		return Definition{Kind: "test", Input: input, Steps: []Step{step}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		if _, err := m.Enqueue(context.Background(), Definition{Kind: "test", Input: json.RawMessage(`{}`), Steps: []Step{step}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for range 20 {
+		m.Wake()
+	}
+	deadline := time.After(time.Second)
+	for completed.Load() != 4 {
+		select {
+		case <-deadline:
+			t.Fatalf("completed = %d", completed.Load())
+		case <-time.After(time.Millisecond):
+		}
+	}
+	m.Stop()
+	if maximum.Load() != 1 {
+		t.Fatalf("maximum concurrent jobs = %d", maximum.Load())
+	}
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("worker did not restart after stop: %v", err)
+	}
+	m.Stop()
+}
+
+func TestEventsHaveDurableMonotonicRevisions(t *testing.T) {
+	m, _ := newTestManager(t, []Step{pass("one")})
+	def, err := m.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := m.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, unsubscribe := m.Subscribe(id)
+	defer unsubscribe()
+	if err := m.RunNext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var previous int64
+	for {
+		event := <-events
+		if event.Revision <= previous {
+			t.Fatalf("revision = %d after %d", event.Revision, previous)
+		}
+		previous = event.Revision
+		if event.Status == StatusSucceeded {
+			break
+		}
+	}
+	job, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Revision != previous {
+		t.Fatalf("persisted revision = %d, last event = %d", job.Revision, previous)
+	}
+}
+
+func TestRepeatedCancelDoesNotBroadcastWithoutTransition(t *testing.T) {
+	m, _ := newTestManager(t, []Step{pass("one")})
+	def, err := m.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := m.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, unsubscribe := m.Subscribe(id)
+	defer unsubscribe()
+	if err := m.Cancel(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	<-events
+	before, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Cancel(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	after, err := m.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Revision != before.Revision {
+		t.Fatalf("revision changed from %d to %d", before.Revision, after.Revision)
+	}
+	select {
+	case event := <-events:
+		t.Fatalf("no-op cancel broadcast %#v", event)
+	default:
 	}
 }
 

@@ -106,6 +106,8 @@
     stream.addEventListener("error", () => { state.textContent = "Reconnecting"; });
     stream.addEventListener("job", event => {
       const update = JSON.parse(event.data);
+      if (update.revision <= Number(row.dataset.jobRevision)) return;
+      row.dataset.jobRevision = String(update.revision);
       row.dataset.jobStatus = update.status;
       const badge = row.querySelector("[data-job-status-label]");
       badge.textContent = label(update.status);

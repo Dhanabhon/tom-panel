@@ -22,6 +22,7 @@ import (
 type App struct {
 	cfg     config.Config
 	handler http.Handler
+	jobs    *jobs.Manager
 }
 
 // New builds the HTTP application.
@@ -67,12 +68,21 @@ func New(cfg config.Config) (*App, error) {
 	mux.Handle("GET /jobs/{jobID}/events", jobHandlers)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
-	go jobRoutes.runQueued()
-	return &App{cfg: cfg, handler: mux}, nil
+	if err := manager.Start(context.Background()); err != nil {
+		return nil, err
+	}
+	return &App{cfg: cfg, handler: mux, jobs: manager}, nil
 }
 
 // Handler returns the application's HTTP handler.
 func (a *App) Handler() http.Handler { return a.handler }
+
+// Close stops the background job worker.
+func (a *App) Close() {
+	if a.jobs != nil {
+		a.jobs.Stop()
+	}
+}
 
 func statePaths(cfg config.Config) (string, string, error) {
 	if cfg.StateDir == "" {

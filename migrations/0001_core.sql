@@ -27,6 +27,7 @@ CREATE TABLE jobs (
     kind TEXT NOT NULL,
     input_json BLOB NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'cancelling', 'cancelled')),
+    revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
     error TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,

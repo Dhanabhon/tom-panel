@@ -61,6 +61,19 @@ func TestLoginRejectsCrossOrigin(t *testing.T) {
 	}
 }
 
+func TestSetupAcceptsExactLoopbackHTTPOrigin(t *testing.T) {
+	service, token := newWebAuth(t)
+	form := url.Values{"setup_token": {token}, "username": {"admin"}, "password": {"correct horse battery staple"}}
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8443/setup", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "http://127.0.0.1:8443")
+	recorder := httptest.NewRecorder()
+	NewAuthHandlers(service).Handler().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body)
+	}
+}
+
 func TestLoginTOTPFlowSetsSessionCookies(t *testing.T) {
 	svc, recoveryCode := seededWebAuth(t)
 	handler := NewAuthHandlers(svc).Handler()

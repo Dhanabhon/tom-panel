@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -20,6 +21,7 @@ var (
 	ErrNoQueuedJobs = errors.New("no queued jobs")
 	ErrJobNotFound  = errors.New("job not found")
 	ErrStepFailed   = errors.New("job step failed")
+	errJobCancelled = errors.New("job cancelled before step start")
 )
 
 type buildFunc func(json.RawMessage) (Definition, error)
@@ -33,6 +35,11 @@ type Manager struct {
 	definitions map[string]Definition
 	subscribers map[string]map[uint64]chan Event
 	nextSubID   uint64
+
+	workerMu     sync.Mutex
+	workerWake   chan struct{}
+	workerCancel context.CancelFunc
+	workerDone   chan struct{}
 }
 
 func NewManager(database *store.Store, redactors ...*Redactor) *Manager {
@@ -46,10 +53,80 @@ func NewManager(database *store.Store, redactors ...*Redactor) *Manager {
 		builders:    make(map[string]buildFunc),
 		definitions: make(map[string]Definition),
 		subscribers: make(map[string]map[uint64]chan Event),
+		workerWake:  make(chan struct{}, 1),
 	}
 }
 
 func (m *Manager) Redactor() *Redactor { return m.redactor }
+
+func (m *Manager) Start(ctx context.Context) error {
+	m.workerMu.Lock()
+	defer m.workerMu.Unlock()
+	if m.workerCancel != nil {
+		return errors.New("job worker is already running")
+	}
+	workerCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	m.workerCancel = cancel
+	m.workerDone = done
+	go m.runWorker(workerCtx, done)
+	m.wakeLocked()
+	return nil
+}
+
+func (m *Manager) Wake() {
+	m.workerMu.Lock()
+	defer m.workerMu.Unlock()
+	m.wakeLocked()
+}
+
+func (m *Manager) wakeLocked() {
+	select {
+	case m.workerWake <- struct{}{}:
+	default:
+	}
+}
+
+func (m *Manager) Stop() {
+	m.workerMu.Lock()
+	cancel, done := m.workerCancel, m.workerDone
+	if cancel == nil {
+		m.workerMu.Unlock()
+		return
+	}
+	cancel()
+	m.workerMu.Unlock()
+	<-done
+	m.workerMu.Lock()
+	if m.workerDone == done {
+		m.workerCancel = nil
+		m.workerDone = nil
+	}
+	m.workerMu.Unlock()
+}
+
+func (m *Manager) runWorker(ctx context.Context, done chan struct{}) {
+	defer close(done)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-m.workerWake:
+		}
+		for {
+			err := m.RunNext(ctx)
+			if errors.Is(err, ErrNoQueuedJobs) {
+				break
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil && !errors.Is(err, ErrStepFailed) {
+				break
+			}
+		}
+	}
+}
 
 func (m *Manager) Register(kind string, build func(json.RawMessage) (Definition, error)) error {
 	if kind == "" || build == nil {
@@ -71,47 +148,76 @@ func (m *Manager) Build(kind string, input json.RawMessage) (Definition, error) 
 	if build == nil {
 		return Definition{}, fmt.Errorf("job kind %q is not registered", kind)
 	}
-	def, err := build(append(json.RawMessage(nil), input...))
+	input = append(json.RawMessage(nil), input...)
+	def, err := build(input)
 	if err != nil {
 		return Definition{}, err
 	}
 	if def.Kind != kind {
 		return Definition{}, fmt.Errorf("job builder for %q returned kind %q", kind, def.Kind)
 	}
+	if !bytes.Equal(def.Input, input) {
+		return Definition{}, errors.New("job builder changed immutable input")
+	}
 	return def, validateDefinition(def)
 }
 
 func (m *Manager) Enqueue(ctx context.Context, def Definition) (string, error) {
+	return m.enqueue(ctx, def, nil)
+}
+
+func (m *Manager) EnqueueWithAudit(ctx context.Context, def Definition, audit Audit) (string, error) {
+	return m.enqueue(ctx, def, &audit)
+}
+
+func (m *Manager) enqueue(ctx context.Context, def Definition, audit *Audit) (string, error) {
 	if err := validateDefinition(def); err != nil {
 		return "", err
+	}
+	input := m.redactor.RedactJSON(def.Input)
+	rebuilt, err := m.Build(def.Kind, input)
+	if err != nil {
+		return "", err
+	}
+	if err := sameStepLayout(def.Steps, rebuilt.Steps); err != nil {
+		return "", err
+	}
+	if audit != nil {
+		if err := validateAudit(*audit); err != nil {
+			return "", err
+		}
 	}
 	id, err := newJobID()
 	if err != nil {
 		return "", err
 	}
-	input := append(json.RawMessage(nil), def.Input...)
 	now := time.Now().UTC().Unix()
 	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO jobs(id, kind, input_json, status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)`, id, def.Kind, []byte(input), StatusQueued, now, now); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO jobs(id, kind, input_json, status, revision, created_at, updated_at)
+			VALUES (?, ?, ?, ?, 1, ?, ?)`, id, rebuilt.Kind, []byte(input), StatusQueued, now, now); err != nil {
 			return fmt.Errorf("insert job: %w", err)
 		}
-		for position, step := range def.Steps {
+		for position, step := range rebuilt.Steps {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO job_steps(job_id, step_key, position, status)
 				VALUES (?, ?, ?, ?)`, id, step.Key, position, StepPending); err != nil {
 				return fmt.Errorf("insert job step %q: %w", step.Key, err)
+			}
+		}
+		if audit != nil {
+			if err := m.insertAuditTx(ctx, tx, id, *audit, now); err != nil {
+				return err
 			}
 		}
 		return nil
 	}); err != nil {
 		return "", err
 	}
-	def.Input = input
-	def.Steps = append([]Step(nil), def.Steps...)
+	rebuilt.Input = append(json.RawMessage(nil), input...)
+	rebuilt.Steps = append([]Step(nil), rebuilt.Steps...)
 	m.mu.Lock()
-	m.definitions[id] = def
+	m.definitions[id] = rebuilt
 	m.mu.Unlock()
-	m.broadcast(Event{JobID: id, Status: StatusQueued, UpdatedAt: time.Unix(now, 0).UTC()})
+	m.broadcast(Event{JobID: id, Status: StatusQueued, Revision: 1, UpdatedAt: time.Unix(now, 0).UTC()})
 	return id, nil
 }
 
@@ -165,28 +271,30 @@ func (m *Manager) ResumeIncomplete(ctx context.Context) error {
 		m.mu.Unlock()
 		if item.status == StatusRunning || item.status == StatusFailed {
 			now := time.Now().UTC().Unix()
+			var revision int64
 			if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 				if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, error = NULL, finished_at = NULL
 					WHERE job_id = ? AND status IN (?, ?)`, StepPending, item.id, StepRunning, StepFailed); err != nil {
 					return err
 				}
-				_, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = NULL WHERE id = ?`, StatusQueued, now, item.id)
-				return err
+				if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = NULL, revision = revision + 1 WHERE id = ?`, StatusQueued, now, item.id); err != nil {
+					return err
+				}
+				return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", item.id).Scan(&revision)
 			}); err != nil {
 				return fmt.Errorf("resume job %s: %w", item.id, err)
 			}
-			m.broadcast(Event{JobID: item.id, Status: StatusQueued, UpdatedAt: time.Unix(now, 0).UTC()})
+			m.broadcast(Event{JobID: item.id, Status: StatusQueued, Revision: revision, UpdatedAt: time.Unix(now, 0).UTC()})
 		}
 	}
 	return nil
 }
 
 func (m *Manager) RunNext(ctx context.Context) error {
-	id, updatedAt, err := m.claimNext(ctx)
+	id, _, err := m.claimNext(ctx)
 	if err != nil {
 		return err
 	}
-	m.broadcast(Event{JobID: id, Status: StatusRunning, UpdatedAt: updatedAt})
 	def, err := m.definitionFor(ctx, id)
 	if err != nil {
 		_ = m.failJob(ctx, id, err)
@@ -205,51 +313,59 @@ func (m *Manager) RunNext(ctx context.Context) error {
 		if job.Steps[position].Status == StepSucceeded {
 			continue
 		}
-		cancelled, err := m.cancelBetweenSteps(ctx, id)
-		if err != nil {
-			return err
-		}
-		if cancelled {
+		attempt, _, err := m.startStep(ctx, id, step.Key)
+		if errors.Is(err, errJobCancelled) {
 			return nil
 		}
-		attempt, startedAt, err := m.startStep(ctx, id, step.Key)
 		if err != nil {
 			return err
 		}
-		m.broadcast(Event{JobID: id, Status: StatusRunning, StepKey: step.Key, StepStatus: StepRunning, AttemptCount: attempt, UpdatedAt: startedAt})
 		result, runErr := step.Run(ctx)
 		if runErr != nil {
 			message := m.redactor.Redact(runErr.Error())
-			failedAt, persistErr := m.finishStepFailure(ctx, id, step.Key, message)
+			failedAt, revision, persistErr := m.finishStepFailure(ctx, id, step.Key, message)
 			if persistErr != nil {
 				return persistErr
 			}
-			m.broadcast(Event{JobID: id, Status: StatusFailed, StepKey: step.Key, StepStatus: StepFailed, AttemptCount: attempt, Error: message, UpdatedAt: failedAt})
+			m.broadcast(Event{JobID: id, Status: StatusFailed, Revision: revision, StepKey: step.Key, StepStatus: StepFailed, AttemptCount: attempt, Error: message, UpdatedAt: failedAt})
 			return fmt.Errorf("%w: %s: %s", ErrStepFailed, step.Key, message)
 		}
 		redactedResult := m.redactor.redactJSON(result)
 		output := m.redactor.Redact(string(redactedResult))
-		finishedAt, err := m.finishStepSuccess(ctx, id, step.Key, redactedResult, output)
+		finishedAt, revision, err := m.finishStepSuccess(ctx, id, step.Key, redactedResult, output)
 		if err != nil {
 			return err
 		}
-		m.broadcast(Event{JobID: id, Status: StatusRunning, StepKey: step.Key, StepStatus: StepSucceeded, AttemptCount: attempt, RedactedOutput: output, UpdatedAt: finishedAt})
+		m.broadcast(Event{JobID: id, Status: StatusRunning, Revision: revision, StepKey: step.Key, StepStatus: StepSucceeded, AttemptCount: attempt, RedactedOutput: output, UpdatedAt: finishedAt})
 	}
-	cancelled, err := m.cancelBetweenSteps(ctx, id)
-	if err != nil || cancelled {
-		return err
-	}
-	status, finishedAt, err := m.finishJobSuccess(ctx, id)
+	status, finishedAt, revision, err := m.finishJobSuccess(ctx, id)
 	if err != nil {
 		return err
 	}
-	m.broadcast(Event{JobID: id, Status: status, UpdatedAt: finishedAt})
+	m.broadcast(Event{JobID: id, Status: status, Revision: revision, UpdatedAt: finishedAt})
 	return nil
 }
 
 func (m *Manager) Cancel(ctx context.Context, jobID string) error {
+	_, err := m.cancel(ctx, jobID, nil)
+	return err
+}
+
+func (m *Manager) CancelWithAudit(ctx context.Context, jobID string, audit Audit) error {
+	_, err := m.cancel(ctx, jobID, &audit)
+	return err
+}
+
+func (m *Manager) cancel(ctx context.Context, jobID string, audit *Audit) (bool, error) {
+	if audit != nil {
+		if err := validateAudit(*audit); err != nil {
+			return false, err
+		}
+	}
 	now := time.Now().UTC().Unix()
 	var status Status
+	var revision int64
+	changed := false
 	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 		if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -263,22 +379,36 @@ func (m *Manager) Cancel(ctx context.Context, jobID string) error {
 			if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status != ?`, StepCancelled, now, jobID, StepSucceeded); err != nil {
 				return err
 			}
-			_, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ? WHERE id = ?`, status, now, now, jobID)
-			return err
+			changed = true
 		case StatusRunning:
 			status = StatusCancelling
-			_, err := tx.ExecContext(ctx, "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?", status, now, jobID)
-			return err
+			changed = true
 		case StatusCancelling, StatusSucceeded, StatusCancelled:
 			return nil
 		default:
 			return fmt.Errorf("unknown job status %q", status)
 		}
+		finishedAt := any(nil)
+		if status == StatusCancelled {
+			finishedAt = now
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = coalesce(?, finished_at), revision = revision + 1 WHERE id = ?`, status, now, finishedAt, jobID); err != nil {
+			return err
+		}
+		if audit != nil {
+			if err := m.insertAuditTx(ctx, tx, jobID, *audit, now); err != nil {
+				return err
+			}
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	}); err != nil {
-		return err
+		return false, err
 	}
-	m.broadcast(Event{JobID: jobID, Status: status, UpdatedAt: time.Unix(now, 0).UTC()})
-	return nil
+	if !changed {
+		return false, nil
+	}
+	m.broadcast(Event{JobID: jobID, Status: status, Revision: revision, UpdatedAt: time.Unix(now, 0).UTC()})
+	return true, nil
 }
 
 func (m *Manager) Subscribe(jobID string) (<-chan Event, func()) {
@@ -313,8 +443,8 @@ func (m *Manager) Get(ctx context.Context, jobID string) (Job, error) {
 		var input []byte
 		var createdAt, updatedAt int64
 		var startedAt, finishedAt sql.NullInt64
-		if err := tx.QueryRowContext(ctx, `SELECT id, kind, input_json, status, coalesce(error, ''), created_at, updated_at, started_at, finished_at
-			FROM jobs WHERE id = ?`, jobID).Scan(&job.ID, &job.Kind, &input, &job.Status, &job.Error, &createdAt, &updatedAt, &startedAt, &finishedAt); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT id, kind, input_json, status, revision, coalesce(error, ''), created_at, updated_at, started_at, finished_at
+			FROM jobs WHERE id = ?`, jobID).Scan(&job.ID, &job.Kind, &input, &job.Status, &job.Revision, &job.Error, &createdAt, &updatedAt, &startedAt, &finishedAt); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrJobNotFound
 			}
@@ -386,7 +516,7 @@ func (m *Manager) SnapshotEvent(ctx context.Context, jobID string) (Event, error
 	if err != nil {
 		return Event{}, err
 	}
-	event := Event{JobID: job.ID, Status: job.Status, Error: job.Error, UpdatedAt: job.UpdatedAt}
+	event := Event{JobID: job.ID, Status: job.Status, Revision: job.Revision, Error: job.Error, UpdatedAt: job.UpdatedAt}
 	for index := len(job.Steps) - 1; index >= 0; index-- {
 		step := job.Steps[index]
 		if step.Status != StepPending {
@@ -435,6 +565,44 @@ func sameSteps(definition []Step, persisted []StepState) error {
 	return nil
 }
 
+func sameStepLayout(left, right []Step) error {
+	if len(left) != len(right) {
+		return errors.New("job definition does not match registered step layout")
+	}
+	for index := range left {
+		if left[index].Key != right[index].Key {
+			return errors.New("job definition does not match registered step layout")
+		}
+	}
+	return nil
+}
+
+func validateAudit(audit Audit) error {
+	if audit.AdminID < 1 || audit.Action == "" {
+		return errors.New("audit administrator and action are required")
+	}
+	if len(audit.Detail) == 0 {
+		audit.Detail = json.RawMessage(`{}`)
+	}
+	if !json.Valid(audit.Detail) {
+		return errors.New("audit detail must be valid JSON")
+	}
+	return nil
+}
+
+func (m *Manager) insertAuditTx(ctx context.Context, tx *sql.Tx, jobID string, audit Audit, now int64) error {
+	detail := audit.Detail
+	if len(detail) == 0 {
+		detail = json.RawMessage(`{}`)
+	}
+	detail = m.redactor.RedactJSON(detail)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO audit_events(admin_id, action, target_kind, target_id, detail_json, created_at)
+		VALUES (?, ?, 'job', ?, ?, ?)`, audit.AdminID, audit.Action, jobID, []byte(detail), now); err != nil {
+		return fmt.Errorf("insert job audit: %w", err)
+	}
+	return nil
+}
+
 func newJobID() (string, error) {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {
@@ -453,6 +621,7 @@ func nullableTime(value sql.NullInt64) *time.Time {
 
 func (m *Manager) claimNext(ctx context.Context) (string, time.Time, error) {
 	var id string
+	var revision int64
 	now := time.Now().UTC().Unix()
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 		if err := tx.QueryRowContext(ctx, "SELECT id FROM jobs WHERE status = ? ORDER BY created_at, id LIMIT 1", StatusQueued).Scan(&id); err != nil {
@@ -461,16 +630,20 @@ func (m *Manager) claimNext(ctx context.Context) (string, time.Time, error) {
 			}
 			return err
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, started_at = coalesce(started_at, ?), updated_at = ? WHERE id = ? AND status = ?`, StatusRunning, now, now, id, StatusQueued)
+		result, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, started_at = coalesce(started_at, ?), updated_at = ?, revision = revision + 1 WHERE id = ? AND status = ?`, StatusRunning, now, now, id, StatusQueued)
 		if err != nil {
 			return err
 		}
 		if changed, _ := result.RowsAffected(); changed != 1 {
 			return ErrNoQueuedJobs
 		}
-		return nil
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", id).Scan(&revision)
 	})
-	return id, time.Unix(now, 0).UTC(), err
+	updatedAt := time.Unix(now, 0).UTC()
+	if err == nil {
+		m.broadcast(Event{JobID: id, Status: StatusRunning, Revision: revision, UpdatedAt: updatedAt})
+	}
+	return id, updatedAt, err
 }
 
 func (m *Manager) definitionFor(ctx context.Context, id string) (Definition, error) {
@@ -496,7 +669,26 @@ func (m *Manager) definitionFor(ctx context.Context, id string) (Definition, err
 func (m *Manager) startStep(ctx context.Context, jobID, key string) (int, time.Time, error) {
 	now := time.Now().UTC().Unix()
 	var attempts int
+	var revision int64
+	cancelled := false
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
+		var status Status
+		if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status); err != nil {
+			return err
+		}
+		if status == StatusCancelling {
+			cancelled = true
+			if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status != ?`, StepCancelled, now, jobID, StepSucceeded); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusCancelled, now, now, jobID); err != nil {
+				return err
+			}
+			return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
+		}
+		if status != StatusRunning {
+			return fmt.Errorf("job %s cannot start a step from %q", jobID, status)
+		}
 		result, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, attempt_count = attempt_count + 1, error = NULL, started_at = ?, finished_at = NULL
 			WHERE job_id = ? AND step_key = ? AND status != ?`, StepRunning, now, jobID, key, StepSucceeded)
 		if err != nil {
@@ -508,40 +700,58 @@ func (m *Manager) startStep(ctx context.Context, jobID, key string) (int, time.T
 		if err := tx.QueryRowContext(ctx, "SELECT attempt_count FROM job_steps WHERE job_id = ? AND step_key = ?", jobID, key).Scan(&attempts); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, "UPDATE jobs SET updated_at = ? WHERE id = ?", now, jobID)
-		return err
+		if _, err := tx.ExecContext(ctx, "UPDATE jobs SET updated_at = ?, revision = revision + 1 WHERE id = ? AND status = ?", now, jobID, StatusRunning); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	})
-	return attempts, time.Unix(now, 0).UTC(), err
+	updatedAt := time.Unix(now, 0).UTC()
+	if err != nil {
+		return 0, updatedAt, err
+	}
+	if cancelled {
+		m.broadcast(Event{JobID: jobID, Status: StatusCancelled, Revision: revision, UpdatedAt: updatedAt})
+		return 0, updatedAt, errJobCancelled
+	}
+	m.broadcast(Event{JobID: jobID, Status: StatusRunning, Revision: revision, StepKey: key, StepStatus: StepRunning, AttemptCount: attempts, UpdatedAt: updatedAt})
+	return attempts, updatedAt, nil
 }
 
-func (m *Manager) finishStepSuccess(ctx context.Context, jobID, key string, result json.RawMessage, output string) (time.Time, error) {
+func (m *Manager) finishStepSuccess(ctx context.Context, jobID, key string, result json.RawMessage, output string) (time.Time, int64, error) {
 	now := time.Now().UTC().Unix()
+	var revision int64
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, result_json = ?, redacted_output = ?, error = NULL, finished_at = ?
 			WHERE job_id = ? AND step_key = ? AND status = ?`, StepSucceeded, []byte(result), output, now, jobID, key, StepRunning); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, "UPDATE jobs SET updated_at = ? WHERE id = ?", now, jobID)
-		return err
+		if _, err := tx.ExecContext(ctx, "UPDATE jobs SET updated_at = ?, revision = revision + 1 WHERE id = ?", now, jobID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	})
-	return time.Unix(now, 0).UTC(), err
+	return time.Unix(now, 0).UTC(), revision, err
 }
 
-func (m *Manager) finishStepFailure(ctx context.Context, jobID, key, message string) (time.Time, error) {
+func (m *Manager) finishStepFailure(ctx context.Context, jobID, key, message string) (time.Time, int64, error) {
 	now := time.Now().UTC().Unix()
+	var revision int64
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, error = ?, redacted_output = ?, finished_at = ? WHERE job_id = ? AND step_key = ?`, StepFailed, message, message, now, jobID, key); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, updated_at = ?, finished_at = ? WHERE id = ?`, StatusFailed, message, now, now, jobID)
-		return err
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusFailed, message, now, now, jobID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	})
-	return time.Unix(now, 0).UTC(), err
+	return time.Unix(now, 0).UTC(), revision, err
 }
 
-func (m *Manager) finishJobSuccess(ctx context.Context, jobID string) (Status, time.Time, error) {
+func (m *Manager) finishJobSuccess(ctx context.Context, jobID string) (Status, time.Time, int64, error) {
 	now := time.Now().UTC().Unix()
 	status := StatusSucceeded
+	var revision int64
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 		var current Status
 		if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&current); err != nil {
@@ -555,50 +765,56 @@ func (m *Manager) finishJobSuccess(ctx context.Context, jobID string) (Status, t
 		default:
 			return fmt.Errorf("job %s cannot finish from %q", jobID, current)
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ? WHERE id = ?`, status, now, now, jobID)
-		return err
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, status, now, now, jobID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	})
-	return status, time.Unix(now, 0).UTC(), err
+	return status, time.Unix(now, 0).UTC(), revision, err
 }
 
 func (m *Manager) failJob(ctx context.Context, jobID string, cause error) error {
 	message := m.redactor.Redact(cause.Error())
 	now := time.Now().UTC().Unix()
+	var revision int64
 	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, updated_at = ?, finished_at = ? WHERE id = ?`, StatusFailed, message, now, now, jobID)
-		return err
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusFailed, message, now, now, jobID); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	}); err != nil {
 		return err
 	}
-	m.broadcast(Event{JobID: jobID, Status: StatusFailed, Error: message, UpdatedAt: time.Unix(now, 0).UTC()})
+	m.broadcast(Event{JobID: jobID, Status: StatusFailed, Revision: revision, Error: message, UpdatedAt: time.Unix(now, 0).UTC()})
 	return nil
-}
-
-func (m *Manager) cancelBetweenSteps(ctx context.Context, jobID string) (bool, error) {
-	var status Status
-	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-		return tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status)
-	}); err != nil {
-		return false, err
-	}
-	if status != StatusCancelling {
-		return false, nil
-	}
-	return true, m.markCancelled(ctx, jobID)
 }
 
 func (m *Manager) markCancelled(ctx context.Context, jobID string) error {
 	now := time.Now().UTC().Unix()
+	var revision int64
+	changed := false
 	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
+		var status Status
+		if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status); err != nil {
+			return err
+		}
+		if status != StatusCancelling {
+			return nil
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status != ?`, StepCancelled, now, jobID, StepSucceeded); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ? WHERE id = ?`, StatusCancelled, now, now, jobID)
-		return err
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ? AND status = ?`, StatusCancelled, now, now, jobID, StatusCancelling); err != nil {
+			return err
+		}
+		changed = true
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	}); err != nil {
 		return err
 	}
-	m.broadcast(Event{JobID: jobID, Status: StatusCancelled, UpdatedAt: time.Unix(now, 0).UTC()})
+	if changed {
+		m.broadcast(Event{JobID: jobID, Status: StatusCancelled, Revision: revision, UpdatedAt: time.Unix(now, 0).UTC()})
+	}
 	return nil
 }
 

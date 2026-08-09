@@ -46,6 +46,50 @@ func TestCSRFAcceptsSameOriginAndToken(t *testing.T) {
 	}
 }
 
+func TestOriginAcceptsExactLoopbackHTTP(t *testing.T) {
+	svc, _, _ := seededAuth(t)
+	handler := svc.RequireOrigin(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8443/setup", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:8443")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+}
+
+func TestOriginRejectsPublicHTTP(t *testing.T) {
+	svc, _, _ := seededAuth(t)
+	handler := svc.RequireOrigin(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "http://panel.example/setup", nil)
+	req.Header.Set("Origin", "http://panel.example")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
+	}
+}
+
+func TestCSRFAcceptsExactLoopbackHTTP(t *testing.T) {
+	svc, _, secret := seededAuth(t)
+	session := login(t, svc, secret)
+	handler := svc.RequireSession(svc.RequireCSRF(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	req := sessionRequest(http.MethodPost, "http://127.0.0.1:8443/settings", session)
+	req.Header.Set("Origin", "http://127.0.0.1:8443")
+	req.Header.Set(CSRFHeader, session.CSRFToken)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+}
+
 func TestCSRFRejectsMissingOrigin(t *testing.T) {
 	svc, _, secret := seededAuth(t)
 	session := login(t, svc, secret)
