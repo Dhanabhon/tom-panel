@@ -22,14 +22,15 @@ import (
 )
 
 const (
-	setupLifetime     = 15 * time.Minute
-	challengeLifetime = 5 * time.Minute
-	idleLifetime      = 30 * time.Minute
-	absoluteLifetime  = 12 * time.Hour
-	stepUpLifetime    = 5 * time.Minute
-	maxThrottleKeys   = 1024
-	maxChallenges     = 128
-	factorThrottleMax = time.Minute
+	setupLifetime         = 15 * time.Minute
+	challengeLifetime     = 5 * time.Minute
+	idleLifetime          = 30 * time.Minute
+	absoluteLifetime      = 12 * time.Hour
+	stepUpLifetime        = 5 * time.Minute
+	maxThrottleKeys       = 1024
+	maxChallenges         = 128
+	factorThrottleMax     = time.Minute
+	passwordInFlightRetry = 250 * time.Millisecond
 )
 
 const (
@@ -95,21 +96,22 @@ type Service struct {
 	store *store.Store
 	now   func() time.Time
 
-	mu         sync.Mutex
-	challenges map[string]challenge
-	throttles  map[string]throttleState
-	dummyHash  []byte
+	mu               sync.Mutex
+	challenges       map[string]challenge
+	throttles        map[string]throttleState
+	passwordInFlight map[string]struct{}
+	dummyHash        []byte
 }
 
 func New(store *store.Store, now func() time.Time) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	dummy, err := hashPassword("tompanel constant shape password")
+	dummy, err := hashPassword(context.Background(), "tompanel constant shape password")
 	if err != nil {
 		dummy = []byte("invalid hash")
 	}
-	return &Service{store: store, now: now, challenges: make(map[string]challenge), throttles: make(map[string]throttleState), dummyHash: dummy}
+	return &Service{store: store, now: now, challenges: make(map[string]challenge), throttles: make(map[string]throttleState), passwordInFlight: make(map[string]struct{}), dummyHash: dummy}
 }
 
 func (s *Service) CreateSetupToken(ctx context.Context) (string, error) {
@@ -150,7 +152,7 @@ func (s *Service) CompleteSetup(ctx context.Context, token, username, password s
 	if err := validatePassword(password, username); err != nil {
 		return Enrollment{}, err
 	}
-	passwordHash, err := hashPassword(password)
+	passwordHash, err := hashPassword(ctx, password)
 	if err != nil {
 		return Enrollment{}, err
 	}
@@ -224,9 +226,10 @@ func (s *Service) checkSetupTokenTx(ctx context.Context, tx *sql.Tx, token strin
 
 func (s *Service) Authenticate(ctx context.Context, username, password, remoteIP string) (string, error) {
 	passwordKeys := []string{"ip:" + normalizeIP(remoteIP), accountThrottleKey(username)}
-	if delay := s.throttled(passwordKeys); delay > 0 {
+	if delay, reserved := s.reservePasswordAttempt(passwordKeys); !reserved {
 		return "", &loginError{retryAfter: delay}
 	}
+	defer s.releasePasswordAttempt(passwordKeys)
 	var adminID int64
 	var credentialVersion int64
 	var storedUsername string
@@ -243,6 +246,13 @@ func (s *Service) Authenticate(ctx context.Context, username, password, remoteIP
 	})
 	if err != nil {
 		return "", fmt.Errorf("read administrator: %w", err)
+	}
+	if err := acquireArgonWork(ctx); err != nil {
+		return "", err
+	}
+	defer releaseArgonWork()
+	if delay := s.throttled(passwordKeys); delay > 0 {
+		return "", &loginError{retryAfter: delay}
 	}
 	usernameOK := constantStringEqual(strings.ToLower(username), strings.ToLower(storedUsername))
 	passwordOK := passwordMatches(passwordHash, password)
@@ -345,6 +355,10 @@ func (s *Service) StepUp(ctx context.Context, sessionID, password, code string) 
 	if err != nil {
 		return ErrInvalidCredentials
 	}
+	if err := acquireArgonWork(ctx); err != nil {
+		return err
+	}
+	defer releaseArgonWork()
 	return s.store.Tx(ctx, func(tx *sql.Tx) error {
 		var passwordHash, encryptedSecret []byte
 		if err := tx.QueryRowContext(ctx, "SELECT password_hash, totp_secret FROM admins WHERE id = ?", record.adminID).Scan(&passwordHash, &encryptedSecret); err != nil {
@@ -376,7 +390,7 @@ func (s *Service) ResetPassword(ctx context.Context, adminID int64, password str
 	if err := validatePassword(password, username); err != nil {
 		return err
 	}
-	passwordHash, err := hashPassword(password)
+	passwordHash, err := hashPassword(ctx, password)
 	if err != nil {
 		return err
 	}
@@ -619,6 +633,10 @@ func (s *Service) pruneChallengesLocked() {
 func (s *Service) throttled(keys []string) time.Duration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.throttleDelayLocked(keys)
+}
+
+func (s *Service) throttleDelayLocked(keys []string) time.Duration {
 	var delay time.Duration
 	for _, key := range keys {
 		if state, ok := s.throttles[key]; ok && s.now().Before(state.until) {
@@ -628,6 +646,31 @@ func (s *Service) throttled(keys []string) time.Duration {
 		}
 	}
 	return delay
+}
+
+func (s *Service) reservePasswordAttempt(keys []string) (time.Duration, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if delay := s.throttleDelayLocked(keys); delay > 0 {
+		return delay, false
+	}
+	for _, key := range keys {
+		if _, exists := s.passwordInFlight[key]; exists {
+			return passwordInFlightRetry, false
+		}
+	}
+	for _, key := range keys {
+		s.passwordInFlight[key] = struct{}{}
+	}
+	return 0, true
+}
+
+func (s *Service) releasePasswordAttempt(keys []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, key := range keys {
+		delete(s.passwordInFlight, key)
+	}
 }
 
 func (s *Service) recordFailure(keys []string) {

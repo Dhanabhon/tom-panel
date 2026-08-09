@@ -43,6 +43,7 @@ func NewDashboardHandlers(service *auth.Service, manager *jobs.Manager, serverNa
 		"statusLabel": statusLabel,
 		"jobTime":     jobTime,
 		"canCancel":   canCancel,
+		"canRetry":    canRetry,
 	}).ParseFS(webassets.FS, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -147,5 +148,17 @@ func jobTime(value time.Time) string {
 }
 
 func canCancel(status jobs.Status) bool {
-	return status == jobs.StatusQueued || status == jobs.StatusRunning || status == jobs.StatusFailed
+	return status == jobs.StatusQueued || status == jobs.StatusRunning
+}
+
+func canRetry(status jobs.Status, code jobs.ErrorCode) bool {
+	if status != jobs.StatusFailed {
+		return false
+	}
+	switch code {
+	case jobs.ErrorReconciliationRequired, jobs.ErrorReconciliationFailed, jobs.ErrorIncompatibleState:
+		return false
+	default:
+		return true
+	}
 }

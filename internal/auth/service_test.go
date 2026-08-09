@@ -218,6 +218,31 @@ func TestPasswordPolicyRejectsOnlyDefinedSafetyBounds(t *testing.T) {
 	}
 }
 
+func TestSetupRejectsNormalizedCommonPasswords(t *testing.T) {
+	for name, password := range map[string]string{
+		"mixed case": "PaSsWoRd1234",
+		"spaces":     "Qwerty Qwerty",
+		"long entry": "1Q2W3E4R5T6Y",
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc := New(openTestStore(t), func() time.Time { return time.Unix(1_800_000_000, 0) })
+			token, err := svc.CreateSetupToken(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CompleteSetup(context.Background(), token, "admin", password); err == nil {
+				t.Fatalf("common password %q was accepted", password)
+			}
+		})
+	}
+}
+
+func TestEmbeddedCommonPasswordDenylistHasExpectedCoverage(t *testing.T) {
+	if len(commonPasswords) < 9_000 {
+		t.Fatalf("common password entries = %d, want at least 9000", len(commonPasswords))
+	}
+}
+
 func TestTOTPAllowsOneStepSkewAndRejectsReplay(t *testing.T) {
 	svc, _, secret := seededAuth(t)
 	challenge, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", "192.0.2.5")
@@ -304,6 +329,45 @@ func TestStepUpRejectsRecoveryCodeWithoutConsumingIt(t *testing.T) {
 	}
 	if _, err := svc.VerifyTOTP(context.Background(), challenge, recoveryCode); err != nil {
 		t.Fatalf("rejected step-up consumed recovery code: %v", err)
+	}
+}
+
+func TestStepUpWaitsForGlobalArgonGate(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	svc, _, secret := seededAuthAt(t, &now)
+	session := login(t, svc, secret)
+	now = now.Add(30 * time.Second)
+	if len(argonWorkGate) != 0 {
+		t.Fatalf("Argon gate has %d unexpected workers", len(argonWorkGate))
+	}
+	for range cap(argonWorkGate) {
+		argonWorkGate <- struct{}{}
+	}
+	defer func() {
+		for len(argonWorkGate) > 0 {
+			<-argonWorkGate
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		result <- svc.StepUp(ctx, session.ID, "correct horse battery staple", totpCode(secret, now))
+	}()
+	select {
+	case err := <-result:
+		cancel()
+		t.Fatalf("step-up bypassed saturated Argon gate: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled gated step-up = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cancelled step-up did not leave the Argon gate")
 	}
 }
 
@@ -415,6 +479,126 @@ func TestLoginThrottleDelayIsBounded(t *testing.T) {
 	}
 }
 
+func TestConcurrentLoginsReserveSameAccountBeforeArgon(t *testing.T) {
+	svc, _, _ := seededAuth(t)
+	const attempts = 4
+	start := make(chan struct{})
+	results := make(chan error, attempts)
+	var ready sync.WaitGroup
+	ready.Add(attempts)
+	for attempt := range attempts {
+		go func() {
+			ready.Done()
+			<-start
+			_, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", fmt.Sprintf("192.0.2.%d", 100+attempt))
+			results <- err
+		}()
+	}
+	ready.Wait()
+	close(start)
+
+	successes := 0
+	for range attempts {
+		err := <-results
+		if err == nil {
+			successes++
+			continue
+		}
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("concurrent rejection = %v", err)
+		}
+		if retry := RetryAfter(err); retry <= 0 || retry > 8*time.Second {
+			t.Fatalf("concurrent retry = %s, want 0 < retry <= 8s", retry)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful concurrent logins = %d, want 1", successes)
+	}
+}
+
+func TestConcurrentLoginsReserveSameIPBeforeArgon(t *testing.T) {
+	svc, _, _ := seededAuth(t)
+	attempts := make([]authenticationAttempt, 4)
+	for i := range attempts {
+		attempts[i] = authenticationAttempt{username: fmt.Sprintf("unknown-%d", i), password: "wrong password", remoteIP: "192.0.2.110"}
+	}
+	peak, results := runConcurrentAuthentications(t, svc, attempts)
+	if peak != 1 {
+		t.Fatalf("peak Argon work for one IP = %d, want 1", peak)
+	}
+	retried := 0
+	for _, err := range results {
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("concurrent rejection = %v", err)
+		}
+		if RetryAfter(err) > 0 {
+			retried++
+		}
+	}
+	if retried != len(attempts)-1 {
+		t.Fatalf("reserved IP rejections = %d, want %d", retried, len(attempts)-1)
+	}
+}
+
+func TestLoginArgonWorkIsGloballyBounded(t *testing.T) {
+	if cap(argonWorkGate) != maxConcurrentArgonWork {
+		t.Fatalf("Argon gate capacity = %d, want %d", cap(argonWorkGate), maxConcurrentArgonWork)
+	}
+	svc, _, _ := seededAuth(t)
+	attempts := make([]authenticationAttempt, 6)
+	for i := range attempts {
+		attempts[i] = authenticationAttempt{username: fmt.Sprintf("unknown-%d", i), password: "wrong password", remoteIP: fmt.Sprintf("192.0.2.%d", 120+i)}
+	}
+	peak, results := runConcurrentAuthentications(t, svc, attempts)
+	if peak != maxConcurrentArgonWork {
+		t.Fatalf("peak concurrent Argon work = %d, want %d", peak, maxConcurrentArgonWork)
+	}
+	for _, err := range results {
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("login error = %v", err)
+		}
+	}
+}
+
+type authenticationAttempt struct {
+	username string
+	password string
+	remoteIP string
+}
+
+func runConcurrentAuthentications(t *testing.T, svc *Service, attempts []authenticationAttempt) (int, []error) {
+	t.Helper()
+	start := make(chan struct{})
+	results := make(chan error, len(attempts))
+	var ready sync.WaitGroup
+	ready.Add(len(attempts))
+	for _, attempt := range attempts {
+		go func() {
+			ready.Done()
+			<-start
+			_, err := svc.Authenticate(context.Background(), attempt.username, attempt.password, attempt.remoteIP)
+			results <- err
+		}()
+	}
+	ready.Wait()
+	close(start)
+
+	peak := 0
+	errs := make([]error, 0, len(attempts))
+	for len(errs) < len(attempts) {
+		if active := len(argonWorkGate); active > peak {
+			peak = active
+		}
+		select {
+		case err := <-results:
+			errs = append(errs, err)
+		default:
+			runtime.Gosched()
+		}
+	}
+	return peak, errs
+}
+
 func TestLoginThrottleStorageIsBounded(t *testing.T) {
 	svc := New(openTestStore(t), func() time.Time { return time.Unix(1_800_000_000, 0) })
 	for i := 0; i < maxThrottleKeys+100; i++ {
@@ -481,7 +665,7 @@ func openTestStore(t *testing.T) *store.Store {
 
 func BenchmarkPasswordHash(b *testing.B) {
 	for b.Loop() {
-		if _, err := hashPassword("benchmark-only long passphrase"); err != nil {
+		if _, err := hashPassword(context.Background(), "benchmark-only long passphrase"); err != nil {
 			b.Fatal(err)
 		}
 	}

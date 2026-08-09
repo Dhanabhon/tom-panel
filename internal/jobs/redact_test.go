@@ -20,6 +20,28 @@ func TestRedactorRemovesSecrets(t *testing.T) {
 	}
 }
 
+func TestRedactorRemovesMultiwordCredentialThroughLine(t *testing.T) {
+	r := NewRedactor()
+	got := r.Redact("request password=correct horse battery staple\nordinary diagnostic text")
+	if strings.Contains(got, "horse battery staple") {
+		t.Fatalf("redacted output leaked credential suffix: %q", got)
+	}
+	if !strings.Contains(got, "request password=[REDACTED]") || !strings.Contains(got, "ordinary diagnostic text") {
+		t.Fatalf("redacted output lost useful non-secret text: %q", got)
+	}
+}
+
+func TestRedactorPreservesLargeJSONNumbers(t *testing.T) {
+	r := NewRedactor()
+	got := r.RedactJSON(json.RawMessage(`{"sequence":900719925474099312345678901234567890,"message":"ordinary"}`))
+	if !strings.Contains(string(got), `900719925474099312345678901234567890`) {
+		t.Fatalf("large integer changed during redaction: %s", got)
+	}
+	if !strings.Contains(string(got), `"message":"ordinary"`) {
+		t.Fatalf("ordinary JSON text changed during redaction: %s", got)
+	}
+}
+
 func TestRedactorRemovesStructuredCredentialNames(t *testing.T) {
 	r := NewRedactor()
 	got := r.RedactJSON([]byte(`{"access_token":"one","client_secret":"two","authorization":"Basic dGhyZWU=","database_password":"four","oauthAccessToken":"five","webhook-secret":"six"}`))

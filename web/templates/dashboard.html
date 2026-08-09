@@ -60,6 +60,12 @@
                   <button class="text-button danger" type="submit">Cancel between steps</button>
                 </form>
                 {{end}}
+                {{if canRetry .Status .ErrorCode}}
+                <form method="post" action="/jobs/{{.ID}}/retry">
+                  <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                  <button class="text-button" type="submit">Retry failed job</button>
+                </form>
+                {{end}}
               </li>
               {{end}}
             </ol>

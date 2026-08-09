@@ -58,13 +58,14 @@ func New(cfg config.Config) (*App, error) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", serveHealth)
+	mux.HandleFunc("GET /healthz", serveHealth(manager))
 	mux.HandleFunc("/healthz", http.NotFound)
 	for _, pattern := range []string{"POST /setup", "POST /login", "POST /login/totp", "POST /logout", "POST /step-up"} {
 		mux.Handle(pattern, authHandlers)
 	}
 	mux.Handle("POST /jobs/demo", jobHandlers)
 	mux.Handle("POST /jobs/{jobID}/cancel", jobHandlers)
+	mux.Handle("POST /jobs/{jobID}/retry", jobHandlers)
 	mux.Handle("GET /jobs/{jobID}/events", jobHandlers)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
@@ -103,7 +104,7 @@ func registerDemoJob(manager *jobs.Manager, agent *agentapi.Client) error {
 			return jobs.Definition{}, errors.New("demo input is invalid")
 		}
 		return jobs.Definition{Kind: "demo", Input: append(json.RawMessage(nil), input...), Steps: []jobs.Step{
-			{Key: "inspect-agent", Run: func(ctx context.Context) (json.RawMessage, error) {
+			{Key: "inspect-agent", Reconcile: safeDemoRetry, Run: func(ctx context.Context) (json.RawMessage, error) {
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 				var result json.RawMessage
@@ -112,7 +113,7 @@ func registerDemoJob(manager *jobs.Manager, agent *agentapi.Client) error {
 				}
 				return result, nil
 			}},
-			{Key: "run-demo", Run: func(ctx context.Context) (json.RawMessage, error) {
+			{Key: "run-demo", Reconcile: safeDemoRetry, Run: func(ctx context.Context) (json.RawMessage, error) {
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 				var result json.RawMessage
@@ -125,9 +126,24 @@ func registerDemoJob(manager *jobs.Manager, agent *agentapi.Client) error {
 	})
 }
 
-func serveHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+func safeDemoRetry(context.Context) (jobs.Reconciliation, error) {
+	return jobs.Reconciliation{Outcome: jobs.ReconcileRetry}, nil
+}
+
+func serveHealth(manager *jobs.Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		worker := manager.WorkerHealth()
+		status := "ok"
+		if worker.Status != "ok" {
+			status = "degraded"
+		}
+		payload, _ := json.Marshal(struct {
+			Status string            `json:"status"`
+			Worker jobs.WorkerHealth `json:"worker"`
+		}{Status: status, Worker: worker})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}
 }
 
 func securityHeaders(next http.Handler) http.Handler {

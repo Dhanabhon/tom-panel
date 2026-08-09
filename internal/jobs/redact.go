@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"bytes"
 	"encoding/json"
 	"regexp"
 	"sort"
@@ -11,8 +12,7 @@ import (
 const redacted = "[REDACTED]"
 
 var (
-	authorizationPattern = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)(?:basic|bearer)\s+[^\s,;]+`)
-	credentialPattern    = regexp.MustCompile(`(?i)(\b[a-z0-9_-]*(?:password|passwd|token|secret|api[_-]?key|private[_-]?key|credential|authorization)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)`)
+	credentialPattern = regexp.MustCompile(`(?im)(\b[a-z0-9_-]*(?:password|passwd|token|secret|api[_-]?key|private[_-]?key|credential|authorization)\b\s*[:=]\s*)[^\r\n]*`)
 )
 
 type Redactor struct {
@@ -50,7 +50,6 @@ func (r *Redactor) Redact(value string) string {
 	for _, secret := range secrets {
 		value = strings.ReplaceAll(value, secret, redacted)
 	}
-	value = authorizationPattern.ReplaceAllString(value, `${1}`+redacted)
 	return credentialPattern.ReplaceAllString(value, `${1}`+redacted)
 }
 
@@ -63,7 +62,9 @@ func (r *Redactor) redactJSON(value json.RawMessage) json.RawMessage {
 		return nil
 	}
 	var decoded any
-	if json.Unmarshal(value, &decoded) != nil {
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	decoder.UseNumber()
+	if decoder.Decode(&decoded) != nil {
 		return json.RawMessage(r.Redact(string(value)))
 	}
 	if text, ok := decoded.(string); ok {

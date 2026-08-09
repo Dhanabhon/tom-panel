@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	"github.com/Dhanabhon/tom-panel/internal/store"
@@ -260,6 +262,100 @@ func TestOpenSSEClosesAfterSessionRevocation(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("SSE remained open after logout")
+	}
+}
+
+func TestFailureCodeAndRedactionReachSSEWithoutLeakingDashboard(t *testing.T) {
+	database, service, manager, recoveryCode := newDashboardRuntime(t)
+	step := jobs.Step{Key: "run", Run: func(context.Context) (json.RawMessage, error) {
+		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "password=correct horse battery staple\nordinary failure"}
+	}}
+	if err := manager.Register("demo", func(input json.RawMessage) (jobs.Definition, error) {
+		return jobs.Definition{Kind: "demo", Input: input, Steps: []jobs.Step{step}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	def, err := manager.Build("demo", json.RawMessage(`{"message":"safe"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := manager.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RunNext(context.Background()); !errors.Is(err, jobs.ErrStepFailed) {
+		t.Fatalf("run error = %v", err)
+	}
+	session := loginDashboardUser(t, service, recoveryCode)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/jobs/"+id+"/events", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: session.ID})
+	recorder := httptest.NewRecorder()
+	NewJobsHandlers(database, service, manager).Handler().ServeHTTP(cancelOnFlush{ResponseRecorder: recorder, cancel: cancel}, req)
+	sse := recorder.Body.String()
+	if !strings.Contains(sse, `"error_code":"agent_operation_not_allowed"`) || !strings.Contains(sse, "ordinary failure") || strings.Contains(sse, "horse battery staple") {
+		t.Fatalf("SSE failure payload = %q", sse)
+	}
+
+	dashboard, err := NewDashboardHandlers(service, manager, "test-vps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dashboardRequest := httptest.NewRequest(http.MethodGet, "https://panel.example/?job="+id, nil)
+	dashboardRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: session.ID})
+	dashboardRecorder := httptest.NewRecorder()
+	dashboard.Handler().ServeHTTP(dashboardRecorder, dashboardRequest)
+	body := dashboardRecorder.Body.String()
+	if !strings.Contains(body, "ordinary failure") || strings.Contains(body, "horse battery staple") {
+		t.Fatalf("rendered failure state = %q", body)
+	}
+	if !strings.Contains(body, "/jobs/"+id+"/retry") || strings.Contains(body, "/jobs/"+id+"/cancel") {
+		t.Fatalf("failed job controls = %q", body)
+	}
+}
+
+func TestFailedJobRetryRouteIsAudited(t *testing.T) {
+	database, service, manager, recoveryCode := newDashboardRuntime(t)
+	step := jobs.Step{Key: "run", Run: func(context.Context) (json.RawMessage, error) {
+		return nil, errors.New("failed")
+	}}
+	if err := manager.Register("test", func(input json.RawMessage) (jobs.Definition, error) {
+		return jobs.Definition{Kind: "test", Input: input, Steps: []jobs.Step{step}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	def, err := manager.Build("test", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := manager.Enqueue(context.Background(), def)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RunNext(context.Background()); !errors.Is(err, jobs.ErrStepFailed) {
+		t.Fatalf("run error = %v", err)
+	}
+	session := loginDashboardUser(t, service, recoveryCode)
+	recorder := postJobForm(t, NewJobsHandlers(database, service, manager).Handler(), session, "/jobs/"+id+"/retry", "")
+	if recorder.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, body = %q", recorder.Code, recorder.Body)
+	}
+	job, err := manager.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Status != jobs.StatusQueued || job.Error != "" || job.ErrorCode != "" {
+		t.Fatalf("retried job = %#v", job)
+	}
+	var action string
+	if err := database.Tx(context.Background(), func(tx *sql.Tx) error {
+		return tx.QueryRow("SELECT action FROM audit_events WHERE target_id = ? ORDER BY id DESC LIMIT 1", id).Scan(&action)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if action != "job.retry.requested" {
+		t.Fatalf("retry audit action = %q", action)
 	}
 }
 

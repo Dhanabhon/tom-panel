@@ -12,16 +12,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 	"github.com/Dhanabhon/tom-panel/internal/store"
 )
 
-const subscriberBuffer = 8
+const (
+	subscriberBuffer = 8
+	workerBackoffMin = 10 * time.Millisecond
+	workerBackoffMax = 250 * time.Millisecond
+)
 
 var (
-	ErrNoQueuedJobs = errors.New("no queued jobs")
-	ErrJobNotFound  = errors.New("job not found")
-	ErrStepFailed   = errors.New("job step failed")
-	errJobCancelled = errors.New("job cancelled before step start")
+	ErrNoQueuedJobs     = errors.New("no queued jobs")
+	ErrJobNotFound      = errors.New("job not found")
+	ErrStepFailed       = errors.New("job step failed")
+	ErrCancelNotAllowed = errors.New("job cannot be cancelled")
+	ErrRetryNotAllowed  = errors.New("job cannot be retried")
+	errJobCancelled     = errors.New("job cancelled before step start")
+	errQuarantined      = errors.New("job quarantined")
 )
 
 type buildFunc func(json.RawMessage) (Definition, error)
@@ -40,6 +48,7 @@ type Manager struct {
 	workerWake   chan struct{}
 	workerCancel context.CancelFunc
 	workerDone   chan struct{}
+	workerHealth WorkerHealth
 }
 
 func NewManager(database *store.Store, redactors ...*Redactor) *Manager {
@@ -48,16 +57,37 @@ func NewManager(database *store.Store, redactors ...*Redactor) *Manager {
 		redactor = redactors[0]
 	}
 	return &Manager{
-		store:       database,
-		redactor:    redactor,
-		builders:    make(map[string]buildFunc),
-		definitions: make(map[string]Definition),
-		subscribers: make(map[string]map[uint64]chan Event),
-		workerWake:  make(chan struct{}, 1),
+		store:        database,
+		redactor:     redactor,
+		builders:     make(map[string]buildFunc),
+		definitions:  make(map[string]Definition),
+		subscribers:  make(map[string]map[uint64]chan Event),
+		workerWake:   make(chan struct{}, 1),
+		workerHealth: WorkerHealth{Status: "ok"},
 	}
 }
 
 func (m *Manager) Redactor() *Redactor { return m.redactor }
+
+func (m *Manager) WorkerHealth() WorkerHealth {
+	m.workerMu.Lock()
+	defer m.workerMu.Unlock()
+	return m.workerHealth
+}
+
+func (m *Manager) setWorkerHealth(health WorkerHealth) {
+	m.workerMu.Lock()
+	m.workerHealth = health
+	m.workerMu.Unlock()
+}
+
+func (m *Manager) clearTransientWorkerHealth() {
+	m.workerMu.Lock()
+	if m.workerHealth.ErrorCode == ErrorInternal {
+		m.workerHealth = WorkerHealth{Status: "ok"}
+	}
+	m.workerMu.Unlock()
+}
 
 func (m *Manager) Start(ctx context.Context) error {
 	m.workerMu.Lock()
@@ -107,6 +137,7 @@ func (m *Manager) Stop() {
 
 func (m *Manager) runWorker(ctx context.Context, done chan struct{}) {
 	defer close(done)
+	backoff := workerBackoffMin
 	for {
 		select {
 		case <-ctx.Done():
@@ -116,13 +147,43 @@ func (m *Manager) runWorker(ctx context.Context, done chan struct{}) {
 		for {
 			err := m.RunNext(ctx)
 			if errors.Is(err, ErrNoQueuedJobs) {
+				m.clearTransientWorkerHealth()
 				break
 			}
 			if ctx.Err() != nil {
 				return
 			}
-			if err != nil && !errors.Is(err, ErrStepFailed) {
-				break
+			switch {
+			case err == nil, errors.Is(err, ErrStepFailed):
+				m.setWorkerHealth(WorkerHealth{Status: "ok"})
+				backoff = workerBackoffMin
+				continue
+			case errors.Is(err, errQuarantined):
+				backoff = workerBackoffMin
+				continue
+			default:
+				m.setWorkerHealth(WorkerHealth{Status: "degraded", ErrorCode: ErrorInternal})
+				for {
+					timer := time.NewTimer(backoff)
+					select {
+					case <-ctx.Done():
+						timer.Stop()
+						return
+					case <-timer.C:
+					}
+					if backoff < workerBackoffMax {
+						backoff *= 2
+						if backoff > workerBackoffMax {
+							backoff = workerBackoffMax
+						}
+					}
+					if recoveryErr := m.ResumeIncomplete(ctx); recoveryErr == nil {
+						break
+					}
+					if ctx.Err() != nil {
+						return
+					}
+				}
 			}
 		}
 	}
@@ -230,7 +291,7 @@ func (m *Manager) ResumeIncomplete(ctx context.Context) error {
 	var pending []persisted
 	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, `SELECT id, kind, input_json, status FROM jobs
-			WHERE status IN (?, ?, ?, ?) ORDER BY created_at, id`, StatusQueued, StatusRunning, StatusFailed, StatusCancelling)
+			WHERE status IN (?, ?, ?) ORDER BY created_at, id`, StatusQueued, StatusRunning, StatusCancelling)
 		if err != nil {
 			return err
 		}
@@ -257,36 +318,140 @@ func (m *Manager) ResumeIncomplete(ctx context.Context) error {
 		}
 		def, err := m.Build(item.kind, item.input)
 		if err != nil {
-			return fmt.Errorf("rebuild job %s: %w", item.id, err)
+			if quarantineErr := m.quarantineJob(ctx, item.id, ErrorIncompatibleState, fmt.Errorf("rebuild job: %w", err)); quarantineErr != nil {
+				return fmt.Errorf("quarantine incompatible job %s: %w", item.id, quarantineErr)
+			}
+			continue
 		}
 		job, err := m.Get(ctx, item.id)
 		if err != nil {
 			return err
 		}
 		if err := sameSteps(def.Steps, job.Steps); err != nil {
-			return fmt.Errorf("rebuild job %s: %w", item.id, err)
+			if quarantineErr := m.quarantineJob(ctx, item.id, ErrorIncompatibleState, err); quarantineErr != nil {
+				return fmt.Errorf("quarantine incompatible job %s: %w", item.id, quarantineErr)
+			}
+			continue
 		}
 		m.mu.Lock()
 		m.definitions[item.id] = def
 		m.mu.Unlock()
-		if item.status == StatusRunning || item.status == StatusFailed {
-			now := time.Now().UTC().Unix()
-			var revision int64
-			if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-				if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, error = NULL, finished_at = NULL
-					WHERE job_id = ? AND status IN (?, ?)`, StepPending, item.id, StepRunning, StepFailed); err != nil {
-					return err
-				}
-				if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = NULL, revision = revision + 1 WHERE id = ?`, StatusQueued, now, item.id); err != nil {
-					return err
-				}
-				return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", item.id).Scan(&revision)
-			}); err != nil {
-				return fmt.Errorf("resume job %s: %w", item.id, err)
+		if item.status == StatusRunning {
+			if err := m.reconcileRunning(ctx, item.id, def, job); err != nil && !errors.Is(err, errQuarantined) {
+				return fmt.Errorf("reconcile job %s: %w", item.id, err)
 			}
-			m.broadcast(Event{JobID: item.id, Status: StatusQueued, Revision: revision, UpdatedAt: time.Unix(now, 0).UTC()})
 		}
 	}
+	return nil
+}
+
+func (m *Manager) reconcileRunning(ctx context.Context, jobID string, def Definition, job Job) error {
+	running := -1
+	for position, step := range job.Steps {
+		switch step.Status {
+		case StepRunning:
+			if running >= 0 {
+				if err := m.quarantineJob(ctx, jobID, ErrorIncompatibleState, errors.New("multiple interrupted steps")); err != nil {
+					return err
+				}
+				return errQuarantined
+			}
+			running = position
+		case StepFailed, StepCancelled:
+			if err := m.quarantineJob(ctx, jobID, ErrorIncompatibleState, fmt.Errorf("running job contains %s step", step.Status)); err != nil {
+				return err
+			}
+			return errQuarantined
+		}
+	}
+	if running < 0 {
+		return m.queueRecoveredJob(ctx, jobID, "", Reconciliation{Outcome: ReconcileRetry})
+	}
+	step := def.Steps[running]
+	if step.Reconcile == nil {
+		if err := m.quarantineJob(ctx, jobID, ErrorReconciliationRequired, fmt.Errorf("interrupted step %q requires reconciliation", step.Key)); err != nil {
+			return err
+		}
+		return errQuarantined
+	}
+	reconciliation, err := step.Reconcile(ctx)
+	if err != nil {
+		if quarantineErr := m.quarantineJob(ctx, jobID, reconciliationErrorCode(err), err); quarantineErr != nil {
+			return quarantineErr
+		}
+		return errQuarantined
+	}
+	switch reconciliation.Outcome {
+	case ReconcileRetry, ReconcileSucceeded:
+		return m.queueRecoveredJob(ctx, jobID, step.Key, reconciliation)
+	default:
+		if err := m.quarantineJob(ctx, jobID, ErrorReconciliationFailed, errors.New("reconciliation returned an invalid outcome")); err != nil {
+			return err
+		}
+		return errQuarantined
+	}
+}
+
+func (m *Manager) queueRecoveredJob(ctx context.Context, jobID, stepKey string, reconciliation Reconciliation) error {
+	now := time.Now().UTC().Unix()
+	var revision int64
+	var stepStatus StepStatus
+	var output string
+	var result json.RawMessage
+	if stepKey != "" {
+		stepStatus = StepPending
+		if reconciliation.Outcome == ReconcileSucceeded {
+			stepStatus = StepSucceeded
+			result = m.redactor.RedactJSON(reconciliation.Result)
+			output = string(result)
+		}
+	}
+	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
+		jobResult, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = NULL, error = NULL, updated_at = ?, finished_at = NULL, revision = revision + 1
+			WHERE id = ? AND status = ?`, StatusQueued, now, jobID, StatusRunning)
+		if err != nil {
+			return err
+		}
+		if changed, _ := jobResult.RowsAffected(); changed != 1 {
+			var status Status
+			if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status); err != nil {
+				return err
+			}
+			if status == StatusCancelling || status == StatusCancelled {
+				return errJobCancelled
+			}
+			return fmt.Errorf("job %s recovery state changed to %q", jobID, status)
+		}
+		if stepKey != "" {
+			switch reconciliation.Outcome {
+			case ReconcileRetry:
+				result, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, result_json = NULL, redacted_output = NULL, error_code = NULL, error = NULL, finished_at = NULL
+					WHERE job_id = ? AND step_key = ? AND status = ?`, StepPending, jobID, stepKey, StepRunning)
+				if err != nil {
+					return err
+				}
+				if changed, _ := result.RowsAffected(); changed != 1 {
+					return errors.New("interrupted step state changed during recovery")
+				}
+			case ReconcileSucceeded:
+				result, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, result_json = ?, redacted_output = ?, error_code = NULL, error = NULL, finished_at = ?
+					WHERE job_id = ? AND step_key = ? AND status = ?`, StepSucceeded, []byte(result), output, now, jobID, stepKey, StepRunning)
+				if err != nil {
+					return err
+				}
+				if changed, _ := result.RowsAffected(); changed != 1 {
+					return errors.New("interrupted step state changed during recovery")
+				}
+			}
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
+	}); err != nil {
+		if errors.Is(err, errJobCancelled) {
+			return m.markCancelled(ctx, jobID)
+		}
+		return err
+	}
+	m.broadcast(Event{JobID: jobID, Status: StatusQueued, Revision: revision, StepKey: stepKey, StepStatus: stepStatus, RedactedOutput: output, UpdatedAt: time.Unix(now, 0).UTC()})
 	return nil
 }
 
@@ -297,16 +462,20 @@ func (m *Manager) RunNext(ctx context.Context) error {
 	}
 	def, err := m.definitionFor(ctx, id)
 	if err != nil {
-		_ = m.failJob(ctx, id, err)
-		return err
+		if quarantineErr := m.quarantineJob(ctx, id, ErrorIncompatibleState, err); quarantineErr != nil {
+			return quarantineErr
+		}
+		return errQuarantined
 	}
 	job, err := m.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 	if err := sameSteps(def.Steps, job.Steps); err != nil {
-		_ = m.failJob(ctx, id, err)
-		return err
+		if quarantineErr := m.quarantineJob(ctx, id, ErrorIncompatibleState, err); quarantineErr != nil {
+			return quarantineErr
+		}
+		return errQuarantined
 	}
 
 	for position, step := range def.Steps {
@@ -323,15 +492,16 @@ func (m *Manager) RunNext(ctx context.Context) error {
 		result, runErr := step.Run(ctx)
 		if runErr != nil {
 			message := m.redactor.Redact(runErr.Error())
-			failedAt, revision, persistErr := m.finishStepFailure(ctx, id, step.Key, message)
+			code := failureCode(runErr)
+			status, failedAt, revision, persistErr := m.finishStepFailure(ctx, id, step.Key, code, message)
 			if persistErr != nil {
 				return persistErr
 			}
-			m.broadcast(Event{JobID: id, Status: StatusFailed, Revision: revision, StepKey: step.Key, StepStatus: StepFailed, AttemptCount: attempt, Error: message, UpdatedAt: failedAt})
+			m.broadcast(Event{JobID: id, Status: status, Revision: revision, StepKey: step.Key, StepStatus: StepFailed, AttemptCount: attempt, ErrorCode: code, Error: message, UpdatedAt: failedAt})
 			return fmt.Errorf("%w: %s: %s", ErrStepFailed, step.Key, message)
 		}
 		redactedResult := m.redactor.redactJSON(result)
-		output := m.redactor.Redact(string(redactedResult))
+		output := string(redactedResult)
 		finishedAt, revision, err := m.finishStepSuccess(ctx, id, step.Key, redactedResult, output)
 		if err != nil {
 			return err
@@ -356,6 +526,53 @@ func (m *Manager) CancelWithAudit(ctx context.Context, jobID string, audit Audit
 	return err
 }
 
+func (m *Manager) RetryWithAudit(ctx context.Context, jobID string, audit Audit) error {
+	if err := validateAudit(audit); err != nil {
+		return err
+	}
+	job, err := m.Get(ctx, jobID)
+	if err != nil {
+		return err
+	}
+	if job.Status != StatusFailed || !retryableFailure(job.ErrorCode) {
+		return ErrRetryNotAllowed
+	}
+	def, err := m.Build(job.Kind, job.Input)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRetryNotAllowed, err)
+	}
+	if err := sameSteps(def.Steps, job.Steps); err != nil {
+		return fmt.Errorf("%w: %v", ErrRetryNotAllowed, err)
+	}
+	now := time.Now().UTC().Unix()
+	var revision int64
+	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = NULL, error = NULL, updated_at = ?, finished_at = NULL, revision = revision + 1
+			WHERE id = ? AND status = ?`, StatusQueued, now, jobID, StatusFailed)
+		if err != nil {
+			return err
+		}
+		if changed, _ := result.RowsAffected(); changed != 1 {
+			return ErrRetryNotAllowed
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, result_json = NULL, redacted_output = NULL, error_code = NULL, error = NULL, finished_at = NULL
+			WHERE job_id = ? AND status = ?`, StepPending, jobID, StepFailed); err != nil {
+			return err
+		}
+		if err := m.insertAuditTx(ctx, tx, jobID, audit, now); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
+	}); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.definitions[jobID] = def
+	m.mu.Unlock()
+	m.broadcast(Event{JobID: jobID, Status: StatusQueued, Revision: revision, UpdatedAt: time.Unix(now, 0).UTC()})
+	return nil
+}
+
 func (m *Manager) cancel(ctx context.Context, jobID string, audit *Audit) (bool, error) {
 	if audit != nil {
 		if err := validateAudit(*audit); err != nil {
@@ -374,7 +591,7 @@ func (m *Manager) cancel(ctx context.Context, jobID string, audit *Audit) (bool,
 			return err
 		}
 		switch status {
-		case StatusQueued, StatusFailed:
+		case StatusQueued:
 			status = StatusCancelled
 			if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status != ?`, StepCancelled, now, jobID, StepSucceeded); err != nil {
 				return err
@@ -383,6 +600,8 @@ func (m *Manager) cancel(ctx context.Context, jobID string, audit *Audit) (bool,
 		case StatusRunning:
 			status = StatusCancelling
 			changed = true
+		case StatusFailed:
+			return ErrCancelNotAllowed
 		case StatusCancelling, StatusSucceeded, StatusCancelled:
 			return nil
 		default:
@@ -392,7 +611,7 @@ func (m *Manager) cancel(ctx context.Context, jobID string, audit *Audit) (bool,
 		if status == StatusCancelled {
 			finishedAt = now
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = coalesce(?, finished_at), revision = revision + 1 WHERE id = ?`, status, now, finishedAt, jobID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = NULL, error = NULL, updated_at = ?, finished_at = coalesce(?, finished_at), revision = revision + 1 WHERE id = ?`, status, now, finishedAt, jobID); err != nil {
 			return err
 		}
 		if audit != nil {
@@ -443,8 +662,8 @@ func (m *Manager) Get(ctx context.Context, jobID string) (Job, error) {
 		var input []byte
 		var createdAt, updatedAt int64
 		var startedAt, finishedAt sql.NullInt64
-		if err := tx.QueryRowContext(ctx, `SELECT id, kind, input_json, status, revision, coalesce(error, ''), created_at, updated_at, started_at, finished_at
-			FROM jobs WHERE id = ?`, jobID).Scan(&job.ID, &job.Kind, &input, &job.Status, &job.Revision, &job.Error, &createdAt, &updatedAt, &startedAt, &finishedAt); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT id, kind, input_json, status, revision, coalesce(error_code, ''), coalesce(error, ''), created_at, updated_at, started_at, finished_at
+			FROM jobs WHERE id = ?`, jobID).Scan(&job.ID, &job.Kind, &input, &job.Status, &job.Revision, &job.ErrorCode, &job.Error, &createdAt, &updatedAt, &startedAt, &finishedAt); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrJobNotFound
 			}
@@ -455,7 +674,7 @@ func (m *Manager) Get(ctx context.Context, jobID string) (Job, error) {
 		job.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 		job.StartedAt = nullableTime(startedAt)
 		job.FinishedAt = nullableTime(finishedAt)
-		rows, err := tx.QueryContext(ctx, `SELECT step_key, position, status, attempt_count, result_json, coalesce(redacted_output, ''), coalesce(error, ''), started_at, finished_at
+		rows, err := tx.QueryContext(ctx, `SELECT step_key, position, status, attempt_count, result_json, coalesce(redacted_output, ''), coalesce(error_code, ''), coalesce(error, ''), started_at, finished_at
 			FROM job_steps WHERE job_id = ? ORDER BY position`, jobID)
 		if err != nil {
 			return err
@@ -465,7 +684,7 @@ func (m *Manager) Get(ctx context.Context, jobID string) (Job, error) {
 			var step StepState
 			var result []byte
 			var stepStarted, stepFinished sql.NullInt64
-			if err := rows.Scan(&step.Key, &step.Position, &step.Status, &step.AttemptCount, &result, &step.RedactedOutput, &step.Error, &stepStarted, &stepFinished); err != nil {
+			if err := rows.Scan(&step.Key, &step.Position, &step.Status, &step.AttemptCount, &result, &step.RedactedOutput, &step.ErrorCode, &step.Error, &stepStarted, &stepFinished); err != nil {
 				return err
 			}
 			step.Result = append(json.RawMessage(nil), result...)
@@ -516,7 +735,7 @@ func (m *Manager) SnapshotEvent(ctx context.Context, jobID string) (Event, error
 	if err != nil {
 		return Event{}, err
 	}
-	event := Event{JobID: job.ID, Status: job.Status, Revision: job.Revision, Error: job.Error, UpdatedAt: job.UpdatedAt}
+	event := Event{JobID: job.ID, Status: job.Status, Revision: job.Revision, ErrorCode: job.ErrorCode, Error: job.Error, UpdatedAt: job.UpdatedAt}
 	for index := len(job.Steps) - 1; index >= 0; index-- {
 		step := job.Steps[index]
 		if step.Status != StepPending {
@@ -525,6 +744,7 @@ func (m *Manager) SnapshotEvent(ctx context.Context, jobID string) (Event, error
 			event.AttemptCount = step.AttemptCount
 			event.RedactedOutput = step.RedactedOutput
 			if event.Error == "" {
+				event.ErrorCode = step.ErrorCode
 				event.Error = step.Error
 			}
 			break
@@ -681,7 +901,7 @@ func (m *Manager) startStep(ctx context.Context, jobID, key string) (int, time.T
 			if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status != ?`, StepCancelled, now, jobID, StepSucceeded); err != nil {
 				return err
 			}
-			if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusCancelled, now, now, jobID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = NULL, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusCancelled, now, now, jobID); err != nil {
 				return err
 			}
 			return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
@@ -689,7 +909,7 @@ func (m *Manager) startStep(ctx context.Context, jobID, key string) (int, time.T
 		if status != StatusRunning {
 			return fmt.Errorf("job %s cannot start a step from %q", jobID, status)
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, attempt_count = attempt_count + 1, error = NULL, started_at = ?, finished_at = NULL
+		result, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, attempt_count = attempt_count + 1, error_code = NULL, error = NULL, started_at = ?, finished_at = NULL
 			WHERE job_id = ? AND step_key = ? AND status != ?`, StepRunning, now, jobID, key, StepSucceeded)
 		if err != nil {
 			return err
@@ -721,7 +941,7 @@ func (m *Manager) finishStepSuccess(ctx context.Context, jobID, key string, resu
 	now := time.Now().UTC().Unix()
 	var revision int64
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, result_json = ?, redacted_output = ?, error = NULL, finished_at = ?
+		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, result_json = ?, redacted_output = ?, error_code = NULL, error = NULL, finished_at = ?
 			WHERE job_id = ? AND step_key = ? AND status = ?`, StepSucceeded, []byte(result), output, now, jobID, key, StepRunning); err != nil {
 			return err
 		}
@@ -733,19 +953,37 @@ func (m *Manager) finishStepSuccess(ctx context.Context, jobID, key string, resu
 	return time.Unix(now, 0).UTC(), revision, err
 }
 
-func (m *Manager) finishStepFailure(ctx context.Context, jobID, key, message string) (time.Time, int64, error) {
+func (m *Manager) finishStepFailure(ctx context.Context, jobID, key string, code ErrorCode, message string) (Status, time.Time, int64, error) {
 	now := time.Now().UTC().Unix()
+	status := StatusFailed
 	var revision int64
 	err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, error = ?, redacted_output = ?, finished_at = ? WHERE job_id = ? AND step_key = ?`, StepFailed, message, message, now, jobID, key); err != nil {
+		var current Status
+		if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&current); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusFailed, message, now, now, jobID); err != nil {
+		switch current {
+		case StatusRunning:
+			status = StatusFailed
+		case StatusCancelling:
+			status = StatusCancelled
+		default:
+			return fmt.Errorf("job %s cannot fail a step from %q", jobID, current)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, error_code = ?, error = ?, redacted_output = ?, finished_at = ? WHERE job_id = ? AND step_key = ?`, StepFailed, code, message, message, now, jobID, key); err != nil {
+			return err
+		}
+		if status == StatusCancelled {
+			if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status = ?`, StepCancelled, now, jobID, StepPending); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = ?, error = ?, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, status, code, message, now, now, jobID); err != nil {
 			return err
 		}
 		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	})
-	return time.Unix(now, 0).UTC(), revision, err
+	return status, time.Unix(now, 0).UTC(), revision, err
 }
 
 func (m *Manager) finishJobSuccess(ctx context.Context, jobID string) (Status, time.Time, int64, error) {
@@ -765,7 +1003,7 @@ func (m *Manager) finishJobSuccess(ctx context.Context, jobID string) (Status, t
 		default:
 			return fmt.Errorf("job %s cannot finish from %q", jobID, current)
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, status, now, now, jobID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = NULL, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, status, now, now, jobID); err != nil {
 			return err
 		}
 		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
@@ -773,19 +1011,50 @@ func (m *Manager) finishJobSuccess(ctx context.Context, jobID string) (Status, t
 	return status, time.Unix(now, 0).UTC(), revision, err
 }
 
-func (m *Manager) failJob(ctx context.Context, jobID string, cause error) error {
+func (m *Manager) quarantineJob(ctx context.Context, jobID string, code ErrorCode, cause error) error {
 	message := m.redactor.Redact(cause.Error())
 	now := time.Now().UTC().Unix()
 	var revision int64
+	changed := false
 	if err := m.store.Tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ?`, StatusFailed, message, now, now, jobID); err != nil {
+		var status Status
+		if err := tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status); err != nil {
 			return err
 		}
+		switch status {
+		case StatusCancelling, StatusCancelled:
+			return errJobCancelled
+		case StatusQueued, StatusRunning:
+		case StatusFailed, StatusSucceeded:
+			return nil
+		default:
+			return fmt.Errorf("job %s cannot be quarantined from %q", jobID, status)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, error_code = ?, error = ?, redacted_output = ?, finished_at = ?
+			WHERE job_id = ? AND status IN (?, ?)`, StepFailed, code, message, message, now, jobID, StepPending, StepRunning); err != nil {
+			return err
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = ?, error = ?, updated_at = ?, finished_at = ?, revision = revision + 1
+			WHERE id = ? AND status IN (?, ?)`, StatusFailed, code, message, now, now, jobID, StatusQueued, StatusRunning)
+		if err != nil {
+			return err
+		}
+		if rows, _ := result.RowsAffected(); rows != 1 {
+			return errors.New("job quarantine state changed")
+		}
+		changed = true
 		return tx.QueryRowContext(ctx, "SELECT revision FROM jobs WHERE id = ?", jobID).Scan(&revision)
 	}); err != nil {
+		if errors.Is(err, errJobCancelled) {
+			return m.markCancelled(ctx, jobID)
+		}
 		return err
 	}
-	m.broadcast(Event{JobID: jobID, Status: StatusFailed, Revision: revision, Error: message, UpdatedAt: time.Unix(now, 0).UTC()})
+	if !changed {
+		return nil
+	}
+	m.setWorkerHealth(WorkerHealth{Status: "degraded", ErrorCode: code})
+	m.broadcast(Event{JobID: jobID, Status: StatusFailed, Revision: revision, ErrorCode: code, Error: message, UpdatedAt: time.Unix(now, 0).UTC()})
 	return nil
 }
 
@@ -804,7 +1073,7 @@ func (m *Manager) markCancelled(ctx context.Context, jobID string) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE job_steps SET status = ?, finished_at = ? WHERE job_id = ? AND status != ?`, StepCancelled, now, jobID, StepSucceeded); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ? AND status = ?`, StatusCancelled, now, now, jobID, StatusCancelling); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error_code = NULL, error = NULL, updated_at = ?, finished_at = ?, revision = revision + 1 WHERE id = ? AND status = ?`, StatusCancelled, now, now, jobID, StatusCancelling); err != nil {
 			return err
 		}
 		changed = true
@@ -816,6 +1085,43 @@ func (m *Manager) markCancelled(ctx context.Context, jobID string) error {
 		m.broadcast(Event{JobID: jobID, Status: StatusCancelled, Revision: revision, UpdatedAt: time.Unix(now, 0).UTC()})
 	}
 	return nil
+}
+
+func failureCode(err error) ErrorCode {
+	var agentErr *agentapi.Error
+	if errors.As(err, &agentErr) {
+		switch agentErr.Code {
+		case "invalid_payload":
+			return ErrorAgentInvalidPayload
+		case "operation_not_allowed":
+			return ErrorAgentOperationNotAllowed
+		case "internal_error":
+			return ErrorAgentInternal
+		default:
+			return ErrorAgent
+		}
+	}
+	switch {
+	case errors.Is(err, context.Canceled):
+		return ErrorContextCancelled
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorDeadlineExceeded
+	default:
+		return ErrorInternal
+	}
+}
+
+func reconciliationErrorCode(_ error) ErrorCode {
+	return ErrorReconciliationFailed
+}
+
+func retryableFailure(code ErrorCode) bool {
+	switch code {
+	case ErrorReconciliationRequired, ErrorReconciliationFailed, ErrorIncompatibleState:
+		return false
+	default:
+		return true
+	}
 }
 
 func (m *Manager) broadcast(event Event) {

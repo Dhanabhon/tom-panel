@@ -24,6 +24,7 @@ func NewJobsHandlers(_ *store.Store, service *auth.Service, manager *jobs.Manage
 	h := &JobsHandlers{auth: service, jobs: manager, mux: http.NewServeMux(), sessionCheckInterval: 15 * time.Second}
 	h.mux.Handle("POST /jobs/demo", service.RequireSession(service.RequireCSRF(http.HandlerFunc(h.enqueueDemo))))
 	h.mux.Handle("POST /jobs/{jobID}/cancel", service.RequireSession(service.RequireCSRF(http.HandlerFunc(h.cancel))))
+	h.mux.Handle("POST /jobs/{jobID}/retry", service.RequireSession(service.RequireCSRF(http.HandlerFunc(h.retry))))
 	h.mux.Handle("GET /jobs/{jobID}/events", service.RequireSession(http.HandlerFunc(h.events)))
 	return h
 }
@@ -81,13 +82,42 @@ func (h *JobsHandlers) cancel(w http.ResponseWriter, r *http.Request) {
 		Action:  "job.cancel.requested",
 		Detail:  json.RawMessage(`{}`),
 	}); err != nil {
-		if errors.Is(err, jobs.ErrJobNotFound) {
+		switch {
+		case errors.Is(err, jobs.ErrJobNotFound):
 			http.NotFound(w, r)
-			return
+		case errors.Is(err, jobs.ErrCancelNotAllowed):
+			http.Error(w, "job cannot be cancelled", http.StatusConflict)
+		default:
+			http.Error(w, "job could not be cancelled", http.StatusInternalServerError)
 		}
-		http.Error(w, "job could not be cancelled", http.StatusInternalServerError)
 		return
 	}
+	http.Redirect(w, r, "/?job="+jobID, http.StatusSeeOther)
+}
+
+func (h *JobsHandlers) retry(w http.ResponseWriter, r *http.Request) {
+	session, ok := auth.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	jobID := r.PathValue("jobID")
+	if err := h.jobs.RetryWithAudit(r.Context(), jobID, jobs.Audit{
+		AdminID: session.AdminID,
+		Action:  "job.retry.requested",
+		Detail:  json.RawMessage(`{}`),
+	}); err != nil {
+		switch {
+		case errors.Is(err, jobs.ErrJobNotFound):
+			http.NotFound(w, r)
+		case errors.Is(err, jobs.ErrRetryNotAllowed):
+			http.Error(w, "job cannot be retried safely", http.StatusConflict)
+		default:
+			http.Error(w, "job could not be retried", http.StatusInternalServerError)
+		}
+		return
+	}
+	h.jobs.Wake()
 	http.Redirect(w, r, "/?job="+jobID, http.StatusSeeOther)
 }
 

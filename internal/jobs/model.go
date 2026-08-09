@@ -27,9 +27,38 @@ const (
 	StepCancelled StepStatus = "cancelled"
 )
 
+type ErrorCode string
+
+const (
+	ErrorAgentInvalidPayload      ErrorCode = "agent_invalid_payload"
+	ErrorAgentOperationNotAllowed ErrorCode = "agent_operation_not_allowed"
+	ErrorAgentInternal            ErrorCode = "agent_internal_error"
+	ErrorAgent                    ErrorCode = "agent_error"
+	ErrorContextCancelled         ErrorCode = "context_cancelled"
+	ErrorDeadlineExceeded         ErrorCode = "deadline_exceeded"
+	ErrorReconciliationRequired   ErrorCode = "reconciliation_required"
+	ErrorReconciliationFailed     ErrorCode = "reconciliation_failed"
+	ErrorIncompatibleState        ErrorCode = "incompatible_state"
+	ErrorInternal                 ErrorCode = "internal_error"
+)
+
+type ReconcileOutcome string
+
+const (
+	ReconcileSucceeded ReconcileOutcome = "succeeded"
+	ReconcileRetry     ReconcileOutcome = "retry"
+)
+
+// Reconciliation records whether an interrupted operation already completed or is safe to retry.
+type Reconciliation struct {
+	Outcome ReconcileOutcome
+	Result  json.RawMessage
+}
+
 type Step struct {
-	Key string
-	Run func(context.Context) (json.RawMessage, error)
+	Key       string
+	Run       func(context.Context) (json.RawMessage, error)
+	Reconcile func(context.Context) (Reconciliation, error)
 }
 
 type Definition struct {
@@ -45,6 +74,7 @@ type StepState struct {
 	AttemptCount   int             `json:"attempt_count"`
 	Result         json.RawMessage `json:"result,omitempty"`
 	RedactedOutput string          `json:"redacted_output,omitempty"`
+	ErrorCode      ErrorCode       `json:"error_code,omitempty"`
 	Error          string          `json:"error,omitempty"`
 	StartedAt      *time.Time      `json:"started_at,omitempty"`
 	FinishedAt     *time.Time      `json:"finished_at,omitempty"`
@@ -56,6 +86,7 @@ type Job struct {
 	Input      json.RawMessage `json:"input"`
 	Status     Status          `json:"status"`
 	Revision   int64           `json:"revision"`
+	ErrorCode  ErrorCode       `json:"error_code,omitempty"`
 	Error      string          `json:"error,omitempty"`
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
@@ -72,8 +103,14 @@ type Event struct {
 	StepStatus     StepStatus `json:"step_status,omitempty"`
 	AttemptCount   int        `json:"attempt_count,omitempty"`
 	RedactedOutput string     `json:"redacted_output,omitempty"`
+	ErrorCode      ErrorCode  `json:"error_code,omitempty"`
 	Error          string     `json:"error,omitempty"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+type WorkerHealth struct {
+	Status    string    `json:"status"`
+	ErrorCode ErrorCode `json:"error_code,omitempty"`
 }
 
 type Audit struct {

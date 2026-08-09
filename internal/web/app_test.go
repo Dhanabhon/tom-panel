@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Dhanabhon/tom-panel/internal/config"
+	"github.com/Dhanabhon/tom-panel/internal/store"
 )
 
 func TestHealthz(t *testing.T) {
@@ -19,8 +22,46 @@ func TestHealthz(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if body := recorder.Body.String(); body != `{"status":"ok"}` {
+	if body := recorder.Body.String(); body != `{"status":"ok","worker":{"status":"ok"}}` {
 		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestIncompatibleDurableJobDoesNotRemoveHealthOrReadOnlyUI(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "master.key")
+	if err := os.WriteFile(keyPath, []byte("0123456789abcdef0123456789abcdef"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	database, err := store.Open(context.Background(), filepath.Join(dir, "tompanel.db"), keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Tx(context.Background(), func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO jobs(id, kind, input_json, status, revision, created_at, updated_at) VALUES ('incompatible', 'removed-kind', ?, 'queued', 1, 1, 1)`, []byte(`{}`))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	app, err := New(config.Config{StateDir: dir, AgentSocket: filepath.Join(dir, "agent.sock")})
+	if err != nil {
+		t.Fatalf("application did not start: %v", err)
+	}
+	defer app.Close()
+
+	for _, check := range []struct {
+		path string
+		body string
+	}{
+		{path: "/healthz", body: `"status":"degraded"`},
+		{path: "/healthz", body: `"error_code":"incompatible_state"`},
+		{path: "/login", body: "Welcome back"},
+	} {
+		recorder := httptest.NewRecorder()
+		app.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, check.path, nil))
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), check.body) {
+			t.Fatalf("GET %s = (%d, %q), want 200 containing %q", check.path, recorder.Code, recorder.Body, check.body)
+		}
 	}
 }
 
