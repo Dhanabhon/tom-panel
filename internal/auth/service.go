@@ -29,6 +29,7 @@ const (
 	stepUpLifetime    = 5 * time.Minute
 	maxThrottleKeys   = 1024
 	maxChallenges     = 128
+	factorThrottleMax = time.Minute
 )
 
 const (
@@ -78,6 +79,7 @@ type setupRecord struct {
 type challenge struct {
 	adminID           int64
 	credentialVersion int64
+	factorKeys        []string
 	expires           time.Time
 	attempts          int
 	inUse             bool
@@ -139,6 +141,9 @@ func (s *Service) CreateSetupToken(ctx context.Context) (string, error) {
 }
 
 func (s *Service) CompleteSetup(ctx context.Context, token, username, password string) (Enrollment, error) {
+	if err := s.preflightSetupToken(ctx, token); err != nil {
+		return Enrollment{}, err
+	}
 	if err := validateUsername(username); err != nil {
 		return Enrollment{}, err
 	}
@@ -161,22 +166,9 @@ func (s *Service) CompleteSetup(ctx context.Context, token, username, password s
 	if err != nil {
 		return Enrollment{}, err
 	}
-	digest := tokenHash(token)
 	err = s.store.Tx(ctx, func(tx *sql.Tx) error {
-		var raw string
-		if err := tx.QueryRowContext(ctx, "SELECT value FROM settings WHERE key = ?", setupSettingKey).Scan(&raw); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrInvalidSetupToken
-			}
-			return fmt.Errorf("read setup token: %w", err)
-		}
-		var record setupRecord
-		if err := json.Unmarshal([]byte(raw), &record); err != nil {
-			return ErrInvalidSetupToken
-		}
-		want, err := base64.RawStdEncoding.DecodeString(record.Hash)
-		if err != nil || len(want) != sha256.Size || subtle.ConstantTimeCompare(digest[:], want) != 1 || !s.now().Before(time.Unix(record.ExpiresAt, 0)) {
-			return ErrInvalidSetupToken
+		if err := s.checkSetupTokenTx(ctx, tx, token); err != nil {
+			return err
 		}
 		result, err := tx.ExecContext(ctx, `INSERT INTO admins(id, username, password_hash, totp_secret, recovery_codes, created_at, updated_at)
 			VALUES (1, ?, ?, ?, ?, ?, ?)`, username, passwordHash, encryptedSecret, encodeRecoveryHashes(recoveryHashes), s.now().Unix(), s.now().Unix())
@@ -197,9 +189,42 @@ func (s *Service) CompleteSetup(ctx context.Context, token, username, password s
 	return Enrollment{TOTPSecret: secret, TOTPURI: totpURI(username, secret), RecoveryCodes: recoveryCodes}, nil
 }
 
+func (s *Service) preflightSetupToken(ctx context.Context, token string) error {
+	return s.store.Tx(ctx, func(tx *sql.Tx) error {
+		return s.checkSetupTokenTx(ctx, tx, token)
+	})
+}
+
+func (s *Service) checkSetupTokenTx(ctx context.Context, tx *sql.Tx, token string) error {
+	var admins int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM admins").Scan(&admins); err != nil {
+		return fmt.Errorf("check administrator: %w", err)
+	}
+	if admins != 0 {
+		return ErrAlreadySetup
+	}
+	var raw string
+	if err := tx.QueryRowContext(ctx, "SELECT value FROM settings WHERE key = ?", setupSettingKey).Scan(&raw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidSetupToken
+		}
+		return fmt.Errorf("read setup token: %w", err)
+	}
+	var record setupRecord
+	if err := json.Unmarshal([]byte(raw), &record); err != nil {
+		return ErrInvalidSetupToken
+	}
+	want, err := base64.RawStdEncoding.DecodeString(record.Hash)
+	digest := tokenHash(token)
+	if err != nil || len(want) != sha256.Size || subtle.ConstantTimeCompare(digest[:], want) != 1 || !s.now().Before(time.Unix(record.ExpiresAt, 0)) {
+		return ErrInvalidSetupToken
+	}
+	return nil
+}
+
 func (s *Service) Authenticate(ctx context.Context, username, password, remoteIP string) (string, error) {
-	keys := []string{"ip:" + normalizeIP(remoteIP), accountThrottleKey(username)}
-	if delay := s.throttled(keys); delay > 0 {
+	passwordKeys := []string{"ip:" + normalizeIP(remoteIP), accountThrottleKey(username)}
+	if delay := s.throttled(passwordKeys); delay > 0 {
 		return "", &loginError{retryAfter: delay}
 	}
 	var adminID int64
@@ -222,17 +247,21 @@ func (s *Service) Authenticate(ctx context.Context, username, password, remoteIP
 	usernameOK := constantStringEqual(strings.ToLower(username), strings.ToLower(storedUsername))
 	passwordOK := passwordMatches(passwordHash, password)
 	if adminID == 0 || !usernameOK || !passwordOK {
-		s.recordFailure(keys)
+		s.recordFailure(passwordKeys)
 		return "", &loginError{}
 	}
-	s.clearThrottle(keys)
+	s.clearThrottle(passwordKeys)
+	factorKeys := secondFactorThrottleKeys(username, remoteIP)
+	if delay := s.throttled(factorKeys); delay > 0 {
+		return "", &loginError{retryAfter: delay}
+	}
 	token, err := randomToken(32)
 	if err != nil {
 		return "", err
 	}
 	s.mu.Lock()
 	s.pruneChallengesLocked()
-	s.challenges[tokenKey(token)] = challenge{adminID: adminID, credentialVersion: credentialVersion, expires: s.now().Add(challengeLifetime)}
+	s.challenges[tokenKey(token)] = challenge{adminID: adminID, credentialVersion: credentialVersion, factorKeys: factorKeys, expires: s.now().Add(challengeLifetime)}
 	s.mu.Unlock()
 	return token, nil
 }
@@ -244,7 +273,11 @@ func (s *Service) VerifyTOTP(ctx context.Context, challengeToken, code string) (
 		return Session{}, ErrInvalidCredentials
 	}
 	succeeded := false
-	defer func() { s.finishChallenge(key, succeeded) }()
+	failedVerification := false
+	defer func() { s.finishChallenge(key, succeeded, failedVerification) }()
+	if delay := s.throttled(challengeRecord.factorKeys); delay > 0 {
+		return Session{}, &loginError{retryAfter: delay}
+	}
 	sessionID, err := randomToken(32)
 	if err != nil {
 		return Session{}, err
@@ -268,7 +301,7 @@ func (s *Service) VerifyTOTP(ctx context.Context, challengeToken, code string) (
 			return err
 		}
 		if usedRecovery {
-			if _, err := tx.ExecContext(ctx, "UPDATE admins SET recovery_codes = ?, updated_at = ? WHERE id = ?", remaining, s.now().Unix(), challengeRecord.adminID); err != nil {
+			if _, err := tx.ExecContext(ctx, "UPDATE admins SET recovery_codes = ?, updated_at = max(updated_at + 1, ?) WHERE id = ?", remaining, s.now().Unix(), challengeRecord.adminID); err != nil {
 				return fmt.Errorf("consume recovery code: %w", err)
 			}
 		}
@@ -278,11 +311,14 @@ func (s *Service) VerifyTOTP(ctx context.Context, challengeToken, code string) (
 	})
 	if err != nil {
 		if errors.Is(err, ErrInvalidCredentials) {
+			failedVerification = true
+			s.recordSecondFactorFailure(challengeRecord.factorKeys)
 			return Session{}, ErrInvalidCredentials
 		}
 		return Session{}, fmt.Errorf("create session: %w", err)
 	}
 	succeeded = true
+	s.clearThrottle(challengeRecord.factorKeys)
 	return Session{ID: sessionID, CSRFToken: csrfToken, IdleExpiresAt: idleExpires, AbsoluteExpiresAt: absoluteExpires}, nil
 }
 
@@ -305,19 +341,14 @@ func (s *Service) StepUp(ctx context.Context, sessionID, password, code string) 
 		return ErrInvalidCredentials
 	}
 	return s.store.Tx(ctx, func(tx *sql.Tx) error {
-		var passwordHash, encryptedSecret, recoveryCodes []byte
-		if err := tx.QueryRowContext(ctx, "SELECT password_hash, totp_secret, recovery_codes FROM admins WHERE id = ?", record.adminID).Scan(&passwordHash, &encryptedSecret, &recoveryCodes); err != nil {
+		var passwordHash, encryptedSecret []byte
+		if err := tx.QueryRowContext(ctx, "SELECT password_hash, totp_secret FROM admins WHERE id = ?", record.adminID).Scan(&passwordHash, &encryptedSecret); err != nil {
 			return ErrInvalidCredentials
 		}
 		passwordOK := passwordMatches(passwordHash, password)
-		remaining, usedRecovery, factorErr := s.verifySecondFactor(ctx, tx, encryptedSecret, recoveryCodes, code)
+		factorErr := s.verifyTOTPFactor(ctx, tx, encryptedSecret, code)
 		if !passwordOK || factorErr != nil {
 			return ErrInvalidCredentials
-		}
-		if usedRecovery {
-			if _, err := tx.ExecContext(ctx, "UPDATE admins SET recovery_codes = ?, updated_at = ? WHERE id = ?", remaining, s.now().Unix(), record.adminID); err != nil {
-				return err
-			}
 		}
 		result, err := tx.ExecContext(ctx, "UPDATE sessions SET step_up_until = ? WHERE id_hash = ?", s.now().Add(stepUpLifetime).Unix(), record.idHash)
 		if err != nil {
@@ -475,9 +506,22 @@ func (s *Service) session(ctx context.Context, sessionID string, touch bool) (se
 }
 
 func (s *Service) verifySecondFactor(ctx context.Context, tx *sql.Tx, encryptedSecret, recoveryCodes []byte, code string) ([]byte, bool, error) {
+	if err := s.verifyTOTPFactor(ctx, tx, encryptedSecret, code); err == nil {
+		return recoveryCodes, false, nil
+	} else if !errors.Is(err, ErrInvalidCredentials) {
+		return nil, false, err
+	}
+	remaining, ok := consumeRecoveryCode(recoveryCodes, code)
+	if !ok {
+		return nil, false, ErrInvalidCredentials
+	}
+	return remaining, true, nil
+}
+
+func (s *Service) verifyTOTPFactor(ctx context.Context, tx *sql.Tx, encryptedSecret []byte, code string) error {
 	secret, err := s.store.Decrypt(encryptedSecret, []byte(totpAAD))
 	if err != nil {
-		return nil, false, ErrInvalidCredentials
+		return ErrInvalidCredentials
 	}
 	defer clearBytes(secret)
 	if counter, ok := matchingTOTPCounter(string(secret), code, s.now()); ok {
@@ -487,24 +531,20 @@ func (s *Service) verifySecondFactor(ctx context.Context, tx *sql.Tx, encryptedS
 		if err == nil {
 			parsed, parseErr := strconv.ParseInt(raw, 10, 64)
 			if parseErr != nil {
-				return nil, false, ErrInvalidCredentials
+				return ErrInvalidCredentials
 			}
 			lastCounter = parsed
 		} else if !errors.Is(err, sql.ErrNoRows) {
-			return nil, false, err
+			return err
 		}
 		if counter <= lastCounter {
-			return nil, false, ErrInvalidCredentials
+			return ErrInvalidCredentials
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)
 			ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, totpReplaySettingKey, strconv.FormatInt(counter, 10), s.now().Unix())
-		return recoveryCodes, false, err
+		return err
 	}
-	remaining, ok := consumeRecoveryCode(recoveryCodes, code)
-	if !ok {
-		return nil, false, ErrInvalidCredentials
-	}
-	return remaining, true, nil
+	return ErrInvalidCredentials
 }
 
 func (s *Service) beginChallenge(key string) (challenge, bool) {
@@ -520,7 +560,7 @@ func (s *Service) beginChallenge(key string) (challenge, bool) {
 	return record, true
 }
 
-func (s *Service) finishChallenge(key string, success bool) {
+func (s *Service) finishChallenge(key string, success, failedVerification bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if success {
@@ -532,7 +572,9 @@ func (s *Service) finishChallenge(key string, success bool) {
 		return
 	}
 	record.inUse = false
-	record.attempts++
+	if failedVerification {
+		record.attempts++
+	}
 	if record.attempts >= 5 {
 		delete(s.challenges, key)
 	} else {
@@ -584,16 +626,26 @@ func (s *Service) throttled(keys []string) time.Duration {
 }
 
 func (s *Service) recordFailure(keys []string) {
+	s.recordFailureWithBounds(keys, 250*time.Millisecond, 8*time.Second)
+}
+
+func (s *Service) recordSecondFactorFailure(keys []string) {
+	s.recordFailureWithBounds(keys, time.Second, factorThrottleMax)
+}
+
+func (s *Service) recordFailureWithBounds(keys []string, base, maximum time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, key := range keys {
 		state := s.throttles[key]
 		state.attempts++
-		exponent := state.attempts - 1
-		if exponent > 5 {
-			exponent = 5
+		delay := base
+		for attempt := 1; attempt < state.attempts && delay < maximum; attempt++ {
+			delay *= 2
+			if delay > maximum {
+				delay = maximum
+			}
 		}
-		delay := 250 * time.Millisecond * time.Duration(1<<exponent)
 		state.until = s.now().Add(delay)
 		state.seen = s.now()
 		s.throttles[key] = state
@@ -649,6 +701,10 @@ func tokenKey(token string) string {
 func accountThrottleKey(username string) string {
 	digest := sha256.Sum256([]byte(strings.ToLower(username)))
 	return "account:" + base64.RawStdEncoding.EncodeToString(digest[:])
+}
+
+func secondFactorThrottleKeys(username, remoteIP string) []string {
+	return []string{"factor-ip:" + normalizeIP(remoteIP), "factor-" + accountThrottleKey(username)}
 }
 
 func constantStringEqual(a, b string) bool {

@@ -19,6 +19,8 @@ type AdminCommands struct {
 	readSecret func(string) (string, error)
 	readLine   func(string) (string, error)
 	out        io.Writer
+	inputTTY   bool
+	outputTTY  bool
 }
 
 func NewAdminCommands(service *auth.Service, input *os.File, output io.Writer) *AdminCommands {
@@ -49,16 +51,28 @@ func NewAdminCommands(service *auth.Service, input *os.File, output io.Writer) *
 		}
 		return strings.TrimSpace(value), nil
 	}
-	return newAdminCommands(service, readSecret, readLine, output)
+	outputFile, outputIsFile := output.(*os.File)
+	return newAdminCommandsWithTerminals(service, readSecret, readLine, output,
+		term.IsTerminal(int(input.Fd())), outputIsFile && term.IsTerminal(int(outputFile.Fd())))
 }
 
 func newAdminCommands(service *auth.Service, readSecret func(string) (string, error), readLine func(string) (string, error), output io.Writer) *AdminCommands {
-	return &AdminCommands{auth: service, readSecret: readSecret, readLine: readLine, out: output}
+	return newAdminCommandsWithTerminals(service, readSecret, readLine, output, true, true)
+}
+
+func newAdminCommandsWithTerminals(service *auth.Service, readSecret func(string) (string, error), readLine func(string) (string, error), output io.Writer, inputTTY, outputTTY bool) *AdminCommands {
+	return &AdminCommands{auth: service, readSecret: readSecret, readLine: readLine, out: output, inputTTY: inputTTY, outputTTY: outputTTY}
 }
 
 func (c *AdminCommands) Run(ctx context.Context, args []string) error {
 	if len(args) != 1 {
 		return errors.New("usage: tompanel admin reset-password|set-username|reset-totp")
+	}
+	if !c.inputTTY {
+		return errors.New("input requires an interactive terminal")
+	}
+	if !c.outputTTY {
+		return errors.New("output requires an interactive terminal")
 	}
 	switch args[0] {
 	case "reset-password":
@@ -89,6 +103,13 @@ func (c *AdminCommands) Run(ctx context.Context, args []string) error {
 		_, err = fmt.Fprintln(c.out, "Username updated; all sessions and recovery codes were invalidated.")
 		return err
 	case "reset-totp":
+		confirmation, err := c.readLine("Type RESET TOTP to continue: ")
+		if err != nil {
+			return err
+		}
+		if confirmation != "RESET TOTP" {
+			return errors.New("TOTP reset confirmation did not match")
+		}
 		enrollment, err := c.auth.ResetTOTP(ctx, 1)
 		if err != nil {
 			return err

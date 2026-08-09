@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 )
@@ -49,9 +50,7 @@ func (h *AuthHandlers) login(w http.ResponseWriter, r *http.Request) {
 	}
 	challenge, err := h.auth.Authenticate(r.Context(), r.PostForm.Get("username"), r.PostForm.Get("password"), remoteIP(r.RemoteAddr))
 	if err != nil {
-		if retry := auth.RetryAfter(err); retry > 0 {
-			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retry.Seconds()))))
-		}
+		setRetryAfter(w, err)
 		writeAuthError(w, http.StatusUnauthorized)
 		return
 	}
@@ -66,6 +65,7 @@ func (h *AuthHandlers) verifyTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	session, err := h.auth.VerifyTOTP(r.Context(), r.PostForm.Get("challenge"), r.PostForm.Get("code"))
 	if err != nil {
+		setRetryAfter(w, err)
 		writeAuthError(w, http.StatusUnauthorized)
 		return
 	}
@@ -76,7 +76,10 @@ func (h *AuthHandlers) verifyTOTP(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandlers) logout(w http.ResponseWriter, r *http.Request) {
 	cookie, _ := r.Cookie(auth.SessionCookieName)
 	if cookie != nil {
-		_ = h.auth.Logout(r.Context(), cookie.Value)
+		if err := h.auth.Logout(r.Context(), cookie.Value); err != nil {
+			writeAuthError(w, http.StatusInternalServerError)
+			return
+		}
 	}
 	auth.ClearSessionCookies(w)
 	w.WriteHeader(http.StatusNoContent)
@@ -115,6 +118,13 @@ func writeAuthError(w http.ResponseWriter, status int) {
 	writeJSON(w, status, struct {
 		Error string `json:"error"`
 	}{Error: "request could not be completed"})
+}
+
+func setRetryAfter(w http.ResponseWriter, err error) {
+	if retry := auth.RetryAfter(err); retry > 0 {
+		seconds := (retry + time.Second - 1) / time.Second
+		w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

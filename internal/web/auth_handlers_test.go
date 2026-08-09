@@ -89,6 +89,25 @@ func TestLoginTOTPFlowSetsSessionCookies(t *testing.T) {
 	}
 }
 
+func TestLogoutSurfacesRevocationFailure(t *testing.T) {
+	svc, _ := seededWebAuth(t)
+	handlers := NewAuthHandlers(svc)
+	req := httptest.NewRequest(http.MethodPost, "https://panel.example/logout", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session"})
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	recorder := httptest.NewRecorder()
+
+	handlers.logout(recorder, req.WithContext(ctx))
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+	if cookies := recorder.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("revocation failure cleared browser cookies: %#v", cookies)
+	}
+}
+
 func loginResponse(t *testing.T, handler http.Handler, username, password string) *httptest.ResponseRecorder {
 	t.Helper()
 	return loginResponseFromIP(t, handler, username, password, "192.0.2.50:1234")

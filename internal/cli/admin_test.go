@@ -59,6 +59,33 @@ func TestAdminCommandsRequireTerminalForSecrets(t *testing.T) {
 	}
 }
 
+func TestEveryRecoveryCommandRejectsNonInteractiveIO(t *testing.T) {
+	for mode, terminals := range map[string][2]bool{"input": {false, true}, "output": {true, false}} {
+		for _, command := range []string{"reset-password", "set-username", "reset-totp"} {
+			t.Run(mode+"/"+command, func(t *testing.T) {
+				svc := seededCLIAuth(t)
+				commands := newAdminCommandsWithTerminals(svc,
+					func(string) (string, error) { return "a new long passphrase", nil },
+					func(string) (string, error) { return "RESET TOTP", nil },
+					&bytes.Buffer{}, terminals[0], terminals[1])
+				err := commands.Run(context.Background(), []string{command})
+				if err == nil || !strings.Contains(err.Error(), "interactive terminal") {
+					t.Fatalf("got %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestResetTOTPRequiresExplicitConfirmation(t *testing.T) {
+	svc := seededCLIAuth(t)
+	commands := newAdminCommands(svc, nil, func(string) (string, error) { return "no", nil }, &bytes.Buffer{})
+	err := commands.Run(context.Background(), []string{"reset-totp"})
+	if err == nil || !strings.Contains(err.Error(), "confirmation") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestSetUsernameInvalidatesSession(t *testing.T) {
 	svc, recoveryCode := seededCLIAuthWithRecovery(t)
 	session := recoveryLogin(t, svc, recoveryCode)
@@ -78,7 +105,7 @@ func TestResetTOTPInvalidatesSessionAndPrintsTenNewCodes(t *testing.T) {
 	svc, recoveryCode := seededCLIAuthWithRecovery(t)
 	session := recoveryLogin(t, svc, recoveryCode)
 	var output bytes.Buffer
-	commands := newAdminCommands(svc, nil, nil, &output)
+	commands := newAdminCommands(svc, nil, func(string) (string, error) { return "RESET TOTP", nil }, &output)
 	if err := commands.Run(context.Background(), []string{"reset-totp"}); err != nil {
 		t.Fatal(err)
 	}

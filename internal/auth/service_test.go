@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -132,6 +134,55 @@ func TestSetupTokenExpiresAndIsSingleUse(t *testing.T) {
 	}
 }
 
+func TestInvalidSetupTokenSkipsArgon2Work(t *testing.T) {
+	svc := New(openTestStore(t), func() time.Time { return time.Unix(1_800_000_000, 0) })
+	if _, err := svc.CreateSetupToken(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, err := svc.CompleteSetup(context.Background(), "invalid-token", "admin", "correct horse battery staple")
+	runtime.ReadMemStats(&after)
+	if !errors.Is(err, ErrInvalidSetupToken) {
+		t.Fatalf("got %v", err)
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 8<<20 {
+		t.Fatalf("invalid token allocated %d bytes; Argon2 work ran before token validation", allocated)
+	}
+}
+
+func TestCompleteSetupRechecksTokenTransactionally(t *testing.T) {
+	svc := New(openTestStore(t), func() time.Time { return time.Unix(1_800_000_000, 0) })
+	token, err := svc.CreateSetupToken(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for range 2 {
+		go func() {
+			ready.Done()
+			<-start
+			_, err := svc.CompleteSetup(context.Background(), token, "admin", "correct horse battery staple")
+			results <- err
+		}()
+	}
+	ready.Wait()
+	close(start)
+	successes := 0
+	for range 2 {
+		if err := <-results; err == nil {
+			successes++
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful setup requests = %d, want 1", successes)
+	}
+}
+
 func TestUnicodePasswordWithSpacesAuthenticates(t *testing.T) {
 	svc := New(openTestStore(t), func() time.Time { return time.Unix(1_800_000_000, 0) })
 	token, err := svc.CreateSetupToken(context.Background())
@@ -197,6 +248,65 @@ func TestTOTPRejectsTwoStepSkew(t *testing.T) {
 	}
 }
 
+func TestTOTPThrottlePersistsAcrossFreshChallenges(t *testing.T) {
+	svc, _, secret := seededAuth(t)
+	first, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", "192.0.2.60")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", "192.0.2.61")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong := wrongTOTP(secret, svc.now())
+	if _, err := svc.VerifyTOTP(context.Background(), first, wrong); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("first guess: got %v", err)
+	}
+	if _, err := svc.VerifyTOTP(context.Background(), second, wrong); RetryAfter(err) <= 0 {
+		t.Fatalf("fresh challenge bypassed TOTP throttle: %v", err)
+	}
+}
+
+func TestTOTPThrottleIsBoundedByAccountAndIPContext(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	svc, _, secret := seededAuthAt(t, &now)
+	for attempt := 0; attempt < 8; attempt++ {
+		remoteIP := fmt.Sprintf("192.0.2.%d", 70+attempt)
+		challenge, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", remoteIP)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.VerifyTOTP(context.Background(), challenge, wrongTOTP(secret, now)); !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("guess %d: %v", attempt, err)
+		}
+		keys := secondFactorThrottleKeys("admin", remoteIP)
+		for _, key := range keys {
+			delay := svc.throttled([]string{key})
+			if delay <= 0 || delay > factorThrottleMax {
+				t.Fatalf("key %q delay = %s, want 0 < delay <= %s", key, delay, factorThrottleMax)
+			}
+		}
+		now = now.Add(svc.throttled(keys))
+	}
+}
+
+func TestStepUpRejectsRecoveryCodeWithoutConsumingIt(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	svc, _, secret, recoveryCode := seededAuthWithRecoveryAt(t, &now)
+	session := login(t, svc, secret)
+	now = now.Add(30 * time.Second)
+	if err := svc.StepUp(context.Background(), session.ID, "correct horse battery staple", recoveryCode); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("step-up accepted recovery code: %v", err)
+	}
+	challenge, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", "192.0.2.62")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.VerifyTOTP(context.Background(), challenge, recoveryCode); err != nil {
+		t.Fatalf("rejected step-up consumed recovery code: %v", err)
+	}
+}
+
 func TestRecoveryCodeIsSingleUse(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	svc, _, _, code := seededAuthWithRecoveryAt(t, &now)
@@ -214,6 +324,41 @@ func TestRecoveryCodeIsSingleUse(t *testing.T) {
 	if _, err := svc.VerifyTOTP(context.Background(), challenge, code); !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("reused recovery code: got %v", err)
 	}
+}
+
+func TestCredentialGenerationNeverDecreases(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	svc, adminID, _, recoveryCode := seededAuthWithRecoveryAt(t, &now)
+	last := credentialGeneration(t, svc)
+	challenge, err := svc.Authenticate(context.Background(), "admin", "correct horse battery staple", "192.0.2.63")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.VerifyTOTP(context.Background(), challenge, recoveryCode); err != nil {
+		t.Fatal(err)
+	}
+	last = requireGenerationIncrease(t, svc, last, "recovery-code use")
+	enrollment, err := svc.ResetTOTP(context.Background(), adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last = requireGenerationIncrease(t, svc, last, "TOTP reset")
+	challenge, err = svc.Authenticate(context.Background(), "admin", "correct horse battery staple", "192.0.2.64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.VerifyTOTP(context.Background(), challenge, enrollment.RecoveryCodes[0]); err != nil {
+		t.Fatal(err)
+	}
+	last = requireGenerationIncrease(t, svc, last, "new recovery-code use")
+	if err := svc.ResetPassword(context.Background(), adminID, "a new long passphrase"); err != nil {
+		t.Fatal(err)
+	}
+	last = requireGenerationIncrease(t, svc, last, "password reset")
+	if err := svc.SetUsername(context.Background(), adminID, "owner"); err != nil {
+		t.Fatal(err)
+	}
+	requireGenerationIncrease(t, svc, last, "username reset")
 }
 
 func TestSessionIdleAndAbsoluteExpiry(t *testing.T) {
@@ -326,4 +471,33 @@ func BenchmarkPasswordHash(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func wrongTOTP(secret string, now time.Time) string {
+	for _, candidate := range []string{"000000", "999999", "123456"} {
+		if _, matches := matchingTOTPCounter(secret, candidate, now); !matches {
+			return candidate
+		}
+	}
+	panic("test candidates unexpectedly matched")
+}
+
+func credentialGeneration(t *testing.T, svc *Service) int64 {
+	t.Helper()
+	var generation int64
+	if err := svc.store.Tx(context.Background(), func(tx *sql.Tx) error {
+		return tx.QueryRow("SELECT updated_at FROM admins WHERE id = 1").Scan(&generation)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return generation
+}
+
+func requireGenerationIncrease(t *testing.T, svc *Service, previous int64, transition string) int64 {
+	t.Helper()
+	current := credentialGeneration(t, svc)
+	if current <= previous {
+		t.Fatalf("generation after %s = %d, want > %d", transition, current, previous)
+	}
+	return current
 }
