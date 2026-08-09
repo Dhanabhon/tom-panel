@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -144,6 +145,116 @@ func TestNewServerBoundsIdlePeer(t *testing.T) {
 	}
 }
 
+func TestSlowOperationCanOutliveFramingTimeout(t *testing.T) {
+	srv, client := newTestServer(t, PeerCredentials{UID: 1001}, 1001)
+	srv.dispatchRequest = func(request agentapi.Request) (json.RawMessage, *agentapi.Error) {
+		if request.Operation != "job.demo" {
+			return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
+		}
+		time.Sleep(2100 * time.Millisecond)
+		return json.RawMessage(`{"message":"slow"}`), nil
+	}
+	serveErr := make(chan error, 1)
+	go func() {
+		defer srv.conn.Close()
+		serveErr <- srv.ServeOne(context.Background())
+	}()
+
+	request := agentapi.Request{
+		Version:   agentapi.ProtocolVersion,
+		ID:        "req-slow",
+		Operation: "job.demo",
+		Payload:   []byte(`{"message":"slow"}`),
+	}
+	if err := agentapi.WriteFrame(context.Background(), client, request); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var response agentapi.Response
+	if err := agentapi.ReadFrame(ctx, client, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error != nil || string(response.Result) != `{"message":"slow"}` {
+		t.Fatalf("got %#v", response)
+	}
+	if err := <-serveErr; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNewServerBoundsUnreadResponse(t *testing.T) {
+	srv, client := newTestServer(t, PeerCredentials{UID: 1001}, 1001)
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.ServeOne(context.Background()) }()
+	go func() {
+		time.Sleep(3 * time.Second)
+		_ = client.Close()
+	}()
+
+	request := agentapi.Request{
+		Version:   agentapi.ProtocolVersion,
+		ID:        "req-unread",
+		Operation: "system.inspect",
+		Payload:   []byte(`{}`),
+	}
+	if err := agentapi.WriteFrame(context.Background(), client, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-serveErr; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestSlowProgressFrameCanOutliveIdleTimeout(t *testing.T) {
+	srv, client := newTestServer(t, PeerCredentials{UID: 1001}, 1001)
+	serveErr := make(chan error, 1)
+	go func() {
+		defer srv.conn.Close()
+		serveErr <- srv.ServeOne(context.Background())
+	}()
+
+	payload, err := json.Marshal(agentapi.Request{
+		Version:   agentapi.ProtocolVersion,
+		ID:        "req-slow-frame",
+		Operation: "system.inspect",
+		Payload:   []byte(`{}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var header [4]byte
+	binary.BigEndian.PutUint32(header[:], uint32(len(payload)))
+	if _, err := client.Write(header[:]); err != nil {
+		t.Fatal(err)
+	}
+	for _, chunk := range splitThree(payload) {
+		time.Sleep(750 * time.Millisecond)
+		if _, err := client.Write(chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	var response agentapi.Response
+	if err := agentapi.ReadFrame(ctx, client, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error != nil {
+		t.Fatal(response.Error)
+	}
+	if err := <-serveErr; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func splitThree(payload []byte) [3][]byte {
+	first := len(payload) / 3
+	second := first * 2
+	return [3][]byte{payload[:first], payload[first:second], payload[second:]}
+}
+
 func TestReadsLinuxPeerCredentials(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("SO_PEERCRED is Linux-only")
@@ -186,8 +297,9 @@ func newTestServer(t *testing.T, credentials PeerCredentials, expectedUID uint32
 	t.Cleanup(func() { server.Close() })
 	t.Cleanup(func() { client.Close() })
 	return &Server{
-		conn:        server,
-		expectedUID: expectedUID,
+		conn:            server,
+		expectedUID:     expectedUID,
+		dispatchRequest: dispatch,
 		peerCredentials: func(net.Conn) (PeerCredentials, error) {
 			return credentials, nil
 		},

@@ -14,12 +14,16 @@ import (
 	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/agent"
+	"golang.org/x/sys/unix"
 )
 
 const (
 	runtimeDirectory = "/run/tompanel"
 	socketPath       = runtimeDirectory + "/agent.sock"
+	lockPath         = runtimeDirectory + "/agent.lock"
 )
+
+var errAgentAlreadyRunning = errors.New("tompanel-agent is already running")
 
 func main() {
 	serviceUser, err := user.Lookup("tompanel")
@@ -44,20 +48,11 @@ func main() {
 	if err := os.Chmod(runtimeDirectory, 0o750); err != nil {
 		log.Fatal(err)
 	}
-	if err := removeStaleSocket(socketPath); err != nil {
-		log.Fatal(err)
-	}
-
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
+	listener, instanceLock, ownedSocket, err := listenAgentSocket(socketPath, lockPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	listener.SetUnlinkOnClose(false)
-	ownedSocket, err := os.Lstat(socketPath)
-	if err != nil {
-		_ = listener.Close()
-		log.Fatal(err)
-	}
+	defer instanceLock.Close()
 	defer func() {
 		if err := removeOwnedSocket(socketPath, ownedSocket); err != nil {
 			log.Printf("remove agent socket: %v", err)
@@ -95,6 +90,43 @@ func main() {
 			}
 		}()
 	}
+}
+
+func listenAgentSocket(socketPath, lockPath string) (*net.UnixListener, *os.File, os.FileInfo, error) {
+	instanceLock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := unix.Flock(int(instanceLock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		_ = instanceLock.Close()
+		if errors.Is(err, unix.EWOULDBLOCK) {
+			return nil, nil, nil, errAgentAlreadyRunning
+		}
+		return nil, nil, nil, fmt.Errorf("lock agent instance: %w", err)
+	}
+	if err := instanceLock.Chmod(0o600); err != nil {
+		_ = instanceLock.Close()
+		return nil, nil, nil, err
+	}
+	if err := removeStaleSocket(socketPath); err != nil {
+		_ = instanceLock.Close()
+		return nil, nil, nil, err
+	}
+
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socketPath, Net: "unix"})
+	if err != nil {
+		_ = instanceLock.Close()
+		return nil, nil, nil, err
+	}
+	listener.SetUnlinkOnClose(false)
+	ownedSocket, err := os.Lstat(socketPath)
+	if err != nil {
+		_ = listener.Close()
+		_ = os.Remove(socketPath)
+		_ = instanceLock.Close()
+		return nil, nil, nil, err
+	}
+	return listener, instanceLock, ownedSocket, nil
 }
 
 func removeStaleSocket(path string) error {

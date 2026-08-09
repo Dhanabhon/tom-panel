@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -10,8 +11,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 )
 
-// ponytail: current operations are local-only; split framing and operation budgets when long-running operations land.
-const requestTimeout = 2 * time.Second
+const frameIdleTimeout = 2 * time.Second
 
 var (
 	ErrUnauthorizedPeer           = errors.New("unauthorized agent peer")
@@ -26,6 +26,70 @@ type PeerCredentials struct {
 
 type peerCredentialsFunc func(net.Conn) (PeerCredentials, error)
 
+type idleConn struct {
+	net.Conn
+	ctx     context.Context
+	timeout time.Duration
+}
+
+func (c *idleConn) Read(p []byte) (int, error) {
+	if err := c.setReadDeadline(); err != nil {
+		return 0, err
+	}
+	n, err := c.Conn.Read(p)
+	return n, c.ioError(err)
+}
+
+func (c *idleConn) Write(p []byte) (int, error) {
+	if err := c.setWriteDeadline(); err != nil {
+		return 0, err
+	}
+	n, err := c.Conn.Write(p)
+	return n, c.ioError(err)
+}
+
+func (c *idleConn) setReadDeadline() error {
+	if err := c.ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.Conn.SetReadDeadline(c.deadline()); err != nil {
+		return err
+	}
+	return c.ctx.Err()
+}
+
+func (c *idleConn) setWriteDeadline() error {
+	if err := c.ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.Conn.SetWriteDeadline(c.deadline()); err != nil {
+		return err
+	}
+	return c.ctx.Err()
+}
+
+func (c *idleConn) deadline() time.Time {
+	deadline := time.Now().Add(c.timeout)
+	if contextDeadline, ok := c.ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		return contextDeadline
+	}
+	return deadline
+}
+
+func (c *idleConn) ioError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if ctxErr := c.ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return context.DeadlineExceeded
+	}
+	return err
+}
+
 var defaultPeerCredentials peerCredentialsFunc = func(net.Conn) (PeerCredentials, error) {
 	return PeerCredentials{}, ErrPeerCredentialsUnsupported
 }
@@ -34,16 +98,19 @@ type Server struct {
 	conn            net.Conn
 	expectedUID     uint32
 	peerCredentials peerCredentialsFunc
+	dispatchRequest func(agentapi.Request) (json.RawMessage, *agentapi.Error)
 }
 
 func NewServer(conn net.Conn, expectedUID uint32) *Server {
-	return &Server{conn: conn, expectedUID: expectedUID, peerCredentials: defaultPeerCredentials}
+	return &Server{
+		conn:            conn,
+		expectedUID:     expectedUID,
+		peerCredentials: defaultPeerCredentials,
+		dispatchRequest: dispatch,
+	}
 }
 
 func (s *Server) ServeOne(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
 	credentials, err := s.peerCredentials(s.conn)
 	if err != nil {
 		return fmt.Errorf("read peer credentials: %w", err)
@@ -53,14 +120,15 @@ func (s *Server) ServeOne(ctx context.Context) error {
 	}
 
 	var request agentapi.Request
-	if err := agentapi.ReadFrame(ctx, s.conn, &request); err != nil {
+	framedConn := &idleConn{Conn: s.conn, ctx: ctx, timeout: frameIdleTimeout}
+	if err := agentapi.ReadFrame(ctx, framedConn, &request); err != nil {
 		return err
 	}
 	response := agentapi.Response{Version: agentapi.ProtocolVersion, ID: request.ID}
 	if request.Version != agentapi.ProtocolVersion {
 		response.Error = &agentapi.Error{Code: "unsupported_version", Message: "agent protocol version is unsupported"}
 	} else {
-		response.Result, response.Error = dispatch(request)
+		response.Result, response.Error = s.dispatchRequest(request)
 	}
-	return agentapi.WriteFrame(ctx, s.conn, response)
+	return agentapi.WriteFrame(ctx, framedConn, response)
 }
