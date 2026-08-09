@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -26,6 +27,34 @@ func TestRedactorRemovesStructuredCredentialNames(t *testing.T) {
 		if strings.Contains(string(got), secret) {
 			t.Fatalf("structured output contains %q: %s", secret, got)
 		}
+	}
+}
+
+func TestRedactorRemovesCredentialFromTopLevelJSONString(t *testing.T) {
+	r := NewRedactor()
+	got := r.RedactJSON(json.RawMessage(`"ordinary text; accessToken=top-level-value"`))
+	if !json.Valid(got) {
+		t.Fatalf("redacted value is not valid JSON: %s", got)
+	}
+	var decoded string
+	if err := json.Unmarshal(got, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != "ordinary text; accessToken=[REDACTED]" {
+		t.Fatalf("redacted string = %q", decoded)
+	}
+}
+
+func TestRedactorRemovesCamelCasePrefixedCredentialNames(t *testing.T) {
+	r := NewRedactor()
+	got := r.Redact("ordinary=value accessToken=access-value clientSecret: client-value databasePassword=database-value")
+	for _, secret := range []string{"access-value", "client-value", "database-value"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("redacted output contains %q: %q", secret, got)
+		}
+	}
+	if !strings.Contains(got, "ordinary=value") {
+		t.Fatalf("redaction removed non-secret text: %q", got)
 	}
 }
 

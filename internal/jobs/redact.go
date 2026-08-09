@@ -12,7 +12,7 @@ const redacted = "[REDACTED]"
 
 var (
 	authorizationPattern = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)(?:basic|bearer)\s+[^\s,;]+`)
-	credentialPattern    = regexp.MustCompile(`(?i)(\b(?:[a-z0-9]+[_-])*(?:password|passwd|token|secret|api[_-]?key|private[_-]?key|credential|authorization)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)`)
+	credentialPattern    = regexp.MustCompile(`(?i)(\b[a-z0-9_-]*(?:password|passwd|token|secret|api[_-]?key|private[_-]?key|credential|authorization)\b\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)`)
 )
 
 type Redactor struct {
@@ -66,7 +66,11 @@ func (r *Redactor) redactJSON(value json.RawMessage) json.RawMessage {
 	if json.Unmarshal(value, &decoded) != nil {
 		return json.RawMessage(r.Redact(string(value)))
 	}
-	redactJSONValue(r, decoded)
+	if text, ok := decoded.(string); ok {
+		decoded = r.Redact(text)
+	} else {
+		redactJSONValue(r, decoded)
+	}
 	encoded, err := json.Marshal(decoded)
 	if err != nil {
 		return json.RawMessage(`null`)
