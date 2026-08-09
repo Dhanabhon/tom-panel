@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TomPanel Dashboard Prototype</title>
+  <!-- PROTOTYPE: Selected direction A — Operations first. -->
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: oklch(98.5% 0.004 250);
+      --surface: oklch(100% 0 0);
+      --surface-2: oklch(96.5% 0.006 250);
+      --ink: oklch(24% 0.02 258);
+      --ink-2: oklch(39% 0.018 257);
+      --muted: oklch(57% 0.015 257);
+      --rule: oklch(89% 0.01 250);
+      --rule-strong: oklch(78% 0.015 250);
+      --accent: oklch(58% 0.20 256);
+      --accent-soft: oklch(94% 0.035 256);
+      --accent-ink: oklch(100% 0 0);
+      --good: oklch(57% 0.14 150);
+      --good-soft: oklch(95% 0.035 150);
+      --warn: oklch(69% 0.14 72);
+      --warn-soft: oklch(96% 0.045 72);
+      --bad: oklch(57% 0.19 25);
+      --bad-soft: oklch(95% 0.04 25);
+      --graphite: oklch(22% 0.016 260);
+      --font-display: "Space Grotesk", "Avenir Next", system-ui, sans-serif;
+      --font-body: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --space-1: .25rem;
+      --space-2: .5rem;
+      --space-3: .75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --radius-sm: .375rem;
+      --radius-md: .625rem;
+      --shadow-switcher: 0 .75rem 2.5rem oklch(20% 0.02 258 / .22);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 20rem; overflow-x: clip; }
+    body { min-height: 100dvh; background: var(--paper); color: var(--ink); font: 400 0.9375rem/1.5 var(--font-body); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, a:focus-visible { outline: .1875rem solid var(--accent); outline-offset: .125rem; }
+    button:active { transform: translateY(.0625rem); }
+    h1, h2, h3, p { margin-block-start: 0; }
+    h1, h2, h3 { font-family: var(--font-display); font-style: normal; overflow-wrap: anywhere; }
+    h1 { margin-block-end: var(--space-2); font-size: clamp(1.5rem, 2vw, 2rem); line-height: 1.15; letter-spacing: -.025em; }
+    h2 { margin-block-end: var(--space-4); font-size: 1.125rem; line-height: 1.25; }
+    h3 { margin-block-end: var(--space-2); font-size: 1rem; }
+    a { color: inherit; }
+    .mono { font-family: var(--font-mono); font-size: .8125rem; }
+    .muted { color: var(--muted); }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .eyebrow { margin: 0 0 var(--space-2); color: var(--muted); font: 500 .7rem/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .prototype-only { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: .8125rem; }
+    .prototype-only::before { width: .5rem; height: .5rem; border-radius: 50%; background: var(--warn); content: ""; }
+    .icon { width: 1.125rem; height: 1.125rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+
+    .btn { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .875rem; font-weight: 600; white-space: nowrap; }
+    .btn:hover { border-color: var(--ink-2); background: var(--surface-2); }
+    .btn-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover { border-color: var(--accent); background: oklch(52% 0.20 256); }
+    .btn-quiet { border-color: transparent; background: transparent; }
+    .icon-btn { width: 2.75rem; padding-inline: 0; }
+
+    .badge { display: inline-flex; min-height: 1.5rem; align-items: center; gap: .375rem; border-radius: 999px; padding: .125rem .5rem; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+    .badge::before { width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; content: ""; }
+    .badge-good { background: var(--good-soft); color: var(--good); }
+    .badge-warn { background: var(--warn-soft); color: oklch(51% 0.12 68); }
+    .badge-bad { background: var(--bad-soft); color: var(--bad); }
+    .badge-neutral { background: var(--surface-2); color: var(--ink-2); }
+
+    .side { position: fixed; inset: 0 auto 0 0; z-index: 3; display: flex; width: 15rem; flex-direction: column; border-inline-end: 1px solid var(--rule); background: var(--surface); padding: var(--space-5) var(--space-4); }
+    .brand { display: flex; min-height: 2.75rem; align-items: center; gap: var(--space-3); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+    .brand-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); font-family: var(--font-mono); font-size: .8125rem; }
+    .nav-label { margin: var(--space-6) var(--space-3) var(--space-2); color: var(--muted); font: 500 .6875rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .nav-list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+    .nav-link { display: flex; min-height: 2.5rem; align-items: center; gap: var(--space-3); border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .nav-link:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+    .side-bottom { display: grid; gap: var(--space-3); margin-top: auto; }
+    .server-mini { border-top: 1px solid var(--rule); padding-top: var(--space-4); }
+    .server-mini strong { display: block; margin-bottom: var(--space-1); }
+    .mobile-menu { display: none; }
+
+    .page { min-height: 100dvh; margin-inline-start: 15rem; }
+    .topbar { position: sticky; top: 0; z-index: 2; display: flex; min-height: 4.5rem; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); background: oklch(98.5% 0.004 250 / .94); padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8)); backdrop-filter: blur(.75rem); }
+    .crumb { color: var(--muted); font-size: .8125rem; }
+    .top-actions { display: flex; align-items: center; gap: var(--space-2); }
+    .quick-jump { min-width: 12rem; justify-content: flex-start; color: var(--muted); font-weight: 500; }
+    kbd { margin-inline-start: auto; border: 1px solid var(--rule-strong); border-radius: .25rem; background: var(--surface-2); padding: .0625rem .3rem; color: var(--ink-2); font: 500 .6875rem/1.4 var(--font-mono); }
+    .content { width: min(100%, 96rem); margin-inline: auto; padding: clamp(var(--space-6), 4vw, var(--space-10));  }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-8); }
+    .page-head p { margin-bottom: 0; color: var(--ink-2); }
+
+    .panel { border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); padding: var(--space-4) var(--space-5); }
+    .panel-head h2 { margin: 0; }
+    .panel-body { padding: var(--space-5); }
+    .action-link { border: 0; background: transparent; color: var(--accent); padding: .25rem 0; font-weight: 650; white-space: nowrap; }
+
+    .resource-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: var(--space-6); border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .resource { min-width: 0; padding: var(--space-4) var(--space-5); }
+    .resource + .resource { border-inline-start: 1px solid var(--rule); }
+    .resource-top { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--ink-2); font-size: .8125rem; }
+    .meter { height: .25rem; margin-top: var(--space-3); overflow: hidden; border-radius: 999px; background: var(--surface-2); }
+    .meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+    .meter.warn span { background: var(--warn); }
+
+    .dashboard-grid-a { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(17rem, .75fr); gap: var(--space-6); align-items: start; }
+    .stack { display: grid; gap: var(--space-6); }
+    .attention-list, .job-list, .site-cards { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+    .attention-item, .job-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: start; padding: var(--space-4) 0; }
+    .attention-item + .attention-item, .job-item + .job-item { border-top: 1px solid var(--rule); }
+    .signal { width: .625rem; height: .625rem; margin-top: .4rem; border-radius: 50%; background: var(--warn); }
+    .signal.bad { background: var(--bad); }
+    .attention-item p, .job-item p { margin: .2rem 0 0; color: var(--muted); font-size: .8125rem; }
+
+    .site-table { width: 100%; border-collapse: collapse; }
+    .site-table th { color: var(--muted); font: 500 .6875rem/1.2 var(--font-mono); letter-spacing: .04em; text-align: start; text-transform: uppercase; }
+    .site-table th, .site-table td { border-bottom: 1px solid var(--rule); padding: .875rem var(--space-5); vertical-align: middle; }
+    .site-table tbody tr:last-child td { border-bottom: 0; }
+    .site-table tbody tr:hover { background: var(--surface-2); }
+    .site-name { display: grid; gap: .125rem; }
+    .site-name a { font-weight: 650; text-decoration: none; }
+    .site-name span { color: var(--muted); font: .75rem/1.4 var(--font-mono); }
+
+    .footer-line { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: space-between; border-top: 1px solid var(--rule); margin-top: var(--space-8); padding-top: var(--space-5); color: var(--muted); font-size: .75rem; }
+    .footer-line nav { display: flex; gap: var(--space-4); }
+
+    .toast { position: fixed; inset: var(--space-4) var(--space-4) auto auto; z-index: 30; max-width: 22rem; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); padding: var(--space-3) var(--space-4); box-shadow: var(--shadow-switcher); opacity: 0; pointer-events: none; transform: translateY(-.5rem); transition: opacity .15s ease-out, transform .15s ease-out; }
+    .toast.show { opacity: 1; transform: none; }
+
+    dialog { width: min(36rem, calc(100% - 2rem)); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); padding: 0; box-shadow: var(--shadow-switcher); }
+    dialog::backdrop { background: oklch(18% 0.02 258 / .5); }
+    .command-search { width: 100%; min-height: 3.5rem; border: 0; border-bottom: 1px solid var(--rule); background: transparent; color: var(--ink); padding: var(--space-4); outline: 0; }
+    .command-list { display: grid; gap: var(--space-1); padding: var(--space-2); }
+    .command { display: flex; min-height: 2.75rem; align-items: center; justify-content: space-between; border: 0; border-radius: var(--radius-sm); background: transparent; padding: var(--space-2) var(--space-3); color: var(--ink); text-align: start; }
+    .command:hover, .command:focus-visible { background: var(--accent-soft); color: var(--accent); }
+
+    @media (max-width: 60rem) {
+      .side { position: sticky; top: 0; width: 100%; height: auto; flex-direction: row; align-items: center; border-inline-end: 0; border-bottom: 1px solid var(--rule); padding: var(--space-2) var(--space-4); }
+      .side > .btn, .side > .nav-label, .side-bottom { display: none; }
+      .side .brand { margin-inline-end: auto; }
+      .side .nav-list { position: absolute; inset: 100% 0 auto; display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--rule); background: var(--surface); padding: var(--space-3); }
+      .side .nav-list.mobile-open { display: grid; }
+      .mobile-menu { display: inline-flex; }
+      .page { margin-inline-start: 0; }
+      .topbar { position: static; }
+      .quick-jump { min-width: 2.75rem; width: 2.75rem; padding-inline: 0; }
+      .quick-jump span, .quick-jump kbd { display: none; }
+      .dashboard-grid-a { grid-template-columns: minmax(0, 1fr); }
+      .resource-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .resource:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--rule); }
+      .resource:nth-child(4) { border-top: 1px solid var(--rule); }
+    }
+
+    @media (max-width: 40rem) {
+      .topbar { min-height: 4rem; padding-inline: var(--space-4); }
+      .topbar .crumb, .top-actions .icon-btn { display: none; }
+      .content { padding-inline: var(--space-4); }
+      .page-head { grid-template-columns: minmax(0, 1fr); flex-direction: column; align-items: stretch; }
+      .page-head .btn { width: 100%; }
+      .resource-strip { grid-template-columns: minmax(0, 1fr); }
+      .resource + .resource { border-inline-start: 0; border-top: 1px solid var(--rule); }
+      .site-table, .site-table tbody, .site-table tr, .site-table td { display: block; width: 100%; }
+      .site-table thead { display: none; }
+      .site-table tr { padding: var(--space-3) var(--space-4); }
+      .site-table tr + tr { border-top: 1px solid var(--rule); }
+      .site-table td { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-3); border: 0; padding: .375rem 0; }
+      .site-table td::before { color: var(--muted); content: attr(data-label); font: 500 .6875rem/1.5 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; }
+      .site-table .site-name { display: grid; }
+      .attention-item, .job-item { grid-template-columns: auto minmax(0, 1fr); }
+      .attention-item .action-link, .job-item .badge { grid-column: 2; justify-self: start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-site" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    <symbol id="i-backup" viewBox="0 0 24 24"><path d="M5 8a8 8 0 1 1-1 7M5 8V3M5 8h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-service" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l2-7 4 14 2-7h6"/></symbol>
+    <symbol id="i-system" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 22h8M12 18v4M7 9l2 2-2 2M12 13h4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A7 7 0 0 0 15 6L14.6 3h-4L10 6a7 7 0 0 0-1.5 1L6 6 4 9.4 6.1 11a7 7 0 0 0 0 2L4 14.6 6 18l2.5-1A7 7 0 0 0 10 18l.6 3h4l.5-3a7 7 0 0 0 1.4-1l2.5 1 2-3.4-2.1-1.6a7 7 0 0 0 .1-1Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+  </svg>
+
+  <section aria-label="Dashboard — Operations first">
+    <aside class="side">
+      <div class="brand"><span class="brand-mark">TP</span> TomPanel</div>
+      <button class="btn btn-primary" type="button" data-demo><svg class="icon"><use href="#i-plus"/></svg>Create site</button>
+      <button class="btn btn-quiet icon-btn mobile-menu" type="button" data-menu aria-label="Open navigation"><svg class="icon"><use href="#i-menu"/></svg></button>
+      <p class="nav-label">Manage</p>
+      <ul class="nav-list">
+        <li><a class="nav-link active" href="#"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-site"/></svg>Sites</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-site"/></svg>Domains</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-db"/></svg>Databases</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-backup"/></svg>Backups</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-service"/></svg>Services</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-activity"/></svg>Activity</a></li>
+        <li><a class="nav-link" href="#"><svg class="icon"><use href="#i-system"/></svg>System</a></li>
+      </ul>
+      <div class="side-bottom">
+        <a class="nav-link" href="#"><svg class="icon"><use href="#i-settings"/></svg>Settings</a>
+        <div class="server-mini"><strong>tom-vps-01</strong><span class="badge badge-good">All services online</span></div>
+      </div>
+    </aside>
+    <div class="page">
+      <header class="topbar">
+        <div><div class="crumb">Server / Dashboard</div><strong class="mono">tom-vps-01</strong></div>
+        <div class="top-actions">
+          <button class="btn quick-jump" type="button" data-command><svg class="icon"><use href="#i-search"/></svg><span>Quick jump</span><kbd>⌘ K</kbd></button>
+          <button class="btn icon-btn" type="button" data-demo aria-label="Notifications"><svg class="icon"><use href="#i-bell"/></svg></button>
+        </div>
+      </header>
+      <main class="content">
+        <div class="page-head">
+          <div><p class="eyebrow">Sunday · Sample data</p><h1>Good morning, Tom.</h1><p>Two items need attention. Everything else is running normally.</p></div>
+          <span class="prototype-only">Read-only prototype</span>
+        </div>
+        <section class="resource-strip" aria-label="Server resources">
+          <div class="resource"><div class="resource-top"><span>CPU</span><strong>24%</strong></div><div class="meter"><span style="width:24%">&#8203;</span></div></div>
+          <div class="resource"><div class="resource-top"><span>Memory</span><strong>1.4 / 4 GB</strong></div><div class="meter"><span style="width:35%">&#8203;</span></div></div>
+          <div class="resource"><div class="resource-top"><span>Disk</span><strong>38 / 80 GB</strong></div><div class="meter"><span style="width:48%">&#8203;</span></div></div>
+          <div class="resource"><div class="resource-top"><span>Load</span><strong>0.42</strong></div><div class="meter"><span style="width:18%">&#8203;</span></div></div>
+        </section>
+        <div class="dashboard-grid-a">
+          <div class="stack">
+            <section class="panel">
+              <header class="panel-head"><h2>Sites</h2><button class="action-link" type="button" data-demo>View all sites →</button></header>
+              <table class="site-table">
+                <thead><tr><th>Site</th><th>Status</th><th>Runtime</th><th>SSL</th><th>Backup</th></tr></thead>
+                <tbody>
+                  <tr><td data-label="Site"><div class="site-name"><a href="#">store.example</a><span>WordPress</span></div></td><td data-label="Status"><span class="badge badge-good">Active</span></td><td data-label="Runtime">PHP 8.4</td><td data-label="SSL">42 days</td><td data-label="Backup">3h ago</td></tr>
+                  <tr><td data-label="Site"><div class="site-name"><a href="#">api.example</a><span>Laravel</span></div></td><td data-label="Status"><span class="badge badge-warn">Warning</span></td><td data-label="Runtime">PHP 8.4</td><td data-label="SSL">67 days</td><td data-label="Backup">3h ago</td></tr>
+                  <tr><td data-label="Site"><div class="site-name"><a href="#">docs.example</a><span>Static</span></div></td><td data-label="Status"><span class="badge badge-good">Active</span></td><td data-label="Runtime">—</td><td data-label="SSL">58 days</td><td data-label="Backup">1d ago</td></tr>
+                  <tr><td data-label="Site"><div class="site-name"><a href="#">app.example</a><span>Reverse proxy</span></div></td><td data-label="Status"><span class="badge badge-good">Active</span></td><td data-label="Runtime">:3000</td><td data-label="SSL">71 days</td><td data-label="Backup">Not needed</td></tr>
+                </tbody>
+              </table>
+            </section>
+            <section class="panel">
+              <header class="panel-head"><h2>Recent jobs</h2><button class="action-link" type="button" data-demo>Open activity →</button></header>
+              <div class="panel-body"><ul class="job-list">
+                <li class="job-item"><svg class="icon"><use href="#i-backup"/></svg><div><strong>Backup completed</strong><p>store.example · 1.2 GB · local</p></div><span class="badge badge-good">Done</span></li>
+                <li class="job-item"><svg class="icon"><use href="#i-service"/></svg><div><strong>WordPress update ready</strong><p>store.example · core 6.x</p></div><span class="badge badge-neutral">Waiting</span></li>
+                <li class="job-item"><svg class="icon"><use href="#i-site"/></svg><div><strong>Certificate renewed</strong><p>docs.example · HTTP-01</p></div><span class="badge badge-good">Done</span></li>
+              </ul></div>
+            </section>
+          </div>
+          <aside class="panel">
+            <header class="panel-head"><h2>Needs attention</h2><span class="badge badge-bad">2 items</span></header>
+            <div class="panel-body"><ul class="attention-list">
+              <li class="attention-item"><span class="signal bad">&#8203;</span><div><strong>Backup failed</strong><p>api.example · S3 upload timed out</p></div><button class="action-link" type="button" data-demo>Review</button></li>
+              <li class="attention-item"><span class="signal">&#8203;</span><div><strong>Security updates ready</strong><p>4 Ubuntu packages · no reboot required</p></div><button class="action-link" type="button" data-demo>Review</button></li>
+            </ul></div>
+          </aside>
+        </div>
+        <footer class="footer-line"><span>TomPanel prototype · v0.0</span><nav><a href="#">Documentation</a><a href="#">GitHub</a><a href="#">MIT License</a></nav></footer>
+      </main>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">Prototype only — no server action was performed.</div>
+
+  <dialog id="command-dialog" aria-labelledby="command-title">
+    <label id="command-title" class="visually-hidden" for="command-input">Quick jump</label>
+    <input class="command-search" id="command-input" type="search" placeholder="Search sites, domains, or actions…" autocomplete="off">
+    <div class="command-list">
+      <button class="command" type="button" data-demo><span>Create a new site</span><kbd>N</kbd></button>
+      <button class="command" type="button" data-demo><span>Open store.example</span><kbd>↵</kbd></button>
+      <button class="command" type="button" data-demo><span>Review failed backups</span><kbd>B</kbd></button>
+      <button class="command" type="button" data-demo><span>Open system updates</span><kbd>U</kbd></button>
+    </div>
+  </dialog>
+
+  <script>
+    const toast = document.querySelector("#toast");
+    let toastTimer;
+    document.addEventListener("click", (event) => {
+      const demoAction = event.target.closest("[data-demo], a[href='#']");
+      if (!demoAction) return;
+      event.preventDefault();
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+    });
+
+    document.querySelectorAll("[data-menu]").forEach((button) => {
+      button.addEventListener("click", () => button.parentElement.querySelector(".nav-list")?.classList.toggle("mobile-open"));
+    });
+
+    const commandDialog = document.querySelector("#command-dialog");
+    const commandInput = document.querySelector("#command-input");
+    function openCommand() {
+      commandDialog.showModal();
+      commandInput.focus();
+    }
+    document.querySelectorAll("[data-command]").forEach((button) => button.addEventListener("click", openCommand));
+    document.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (commandDialog.open) commandDialog.close(); else openCommand();
+      }
+    });
+    commandDialog.addEventListener("click", (event) => {
+      if (event.target === commandDialog) commandDialog.close();
+    });
+
+  </script>
+</body>
+</html>

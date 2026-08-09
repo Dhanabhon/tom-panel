@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TomPanel Sites List Prototype</title>
+  <!-- PROTOTYPE — One approved Sites table layout to validate density, filtering, and the path to Site Overview. No server mutations. -->
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: oklch(98.5% 0.004 250);
+      --surface: oklch(100% 0 0);
+      --surface-2: oklch(96.5% 0.006 250);
+      --ink: oklch(24% 0.02 258);
+      --ink-2: oklch(39% 0.018 257);
+      --muted: oklch(57% 0.015 257);
+      --rule: oklch(89% 0.01 250);
+      --rule-strong: oklch(78% 0.015 250);
+      --accent: oklch(58% 0.20 256);
+      --accent-soft: oklch(94% 0.035 256);
+      --good: oklch(55% 0.14 150);
+      --good-soft: oklch(95% 0.035 150);
+      --warn: oklch(66% 0.14 72);
+      --warn-soft: oklch(96% 0.045 72);
+      --bad: oklch(57% 0.19 25);
+      --bad-soft: oklch(95% 0.04 25);
+      --graphite: oklch(22% 0.016 260);
+      --font-display: "Space Grotesk", "Avenir Next", system-ui, sans-serif;
+      --font-body: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --radius-sm: .375rem;
+      --radius-md: .625rem;
+      --shadow: 0 .75rem 2.5rem oklch(20% 0.02 258 / .18);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 20rem; overflow-x: clip; }
+    body { min-height: 100dvh; background: var(--paper); color: var(--ink); font: 400 .9375rem/1.5 var(--font-body); }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: .1875rem solid var(--accent); outline-offset: .125rem; }
+    button:active { transform: translateY(.0625rem); }
+    h1, h2, p { margin-block-start: 0; }
+    h1, h2 { font-family: var(--font-display); overflow-wrap: anywhere; }
+    h1 { margin-block-end: .5rem; font-size: clamp(1.75rem, 3vw, 2.5rem); line-height: 1.1; letter-spacing: -.035em; }
+    h2 { margin-block-end: 1rem; font-size: 1.125rem; }
+    a { color: inherit; }
+    .mono { font-family: var(--font-mono); font-size: .8125rem; }
+    .muted { color: var(--muted); }
+    .eyebrow { margin: 0 0 .5rem; color: var(--muted); font: 500 .7rem/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .icon { width: 1.125rem; height: 1.125rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+    .btn { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: .5rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .875rem; font-weight: 650; text-decoration: none; white-space: nowrap; }
+    .btn:hover { border-color: var(--ink-2); background: var(--surface-2); }
+    .btn-primary { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+    .btn-primary:hover { border-color: var(--accent); background: oklch(52% 0.20 256); }
+    .btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+    .badge { display: inline-flex; min-height: 1.5rem; align-items: center; gap: .375rem; border-radius: 999px; padding: .125rem .5rem; font-size: .75rem; font-weight: 650; white-space: nowrap; }
+    .badge::before { width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; content: ""; }
+    .badge-good { background: var(--good-soft); color: var(--good); }
+    .badge-warn { background: var(--warn-soft); color: oklch(50% .12 68); }
+    .badge-bad { background: var(--bad-soft); color: var(--bad); }
+    .badge-neutral { background: var(--surface-2); color: var(--ink-2); }
+
+    .side { position: fixed; inset: 0 auto 0 0; z-index: 3; display: flex; width: 15rem; flex-direction: column; border-inline-end: 1px solid var(--rule); background: var(--surface); padding: 1.25rem 1rem; }
+    .brand { display: flex; min-height: 2.75rem; align-items: center; gap: .75rem; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+    .brand-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); font: 700 .8125rem/1 var(--font-mono); }
+    .nav-label { margin: 1.5rem .75rem .5rem; color: var(--muted); font: 500 .6875rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .nav-list { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+    .nav-link { display: flex; min-height: 2.5rem; align-items: center; gap: .75rem; border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .nav-link:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+    .side-bottom { display: grid; gap: .75rem; margin-top: auto; }
+    .server-mini { border-top: 1px solid var(--rule); padding-top: 1rem; }
+    .server-mini strong { display: block; margin-bottom: .25rem; }
+    .mobile-menu { display: none; }
+
+    .page { min-height: 100dvh; margin-inline-start: 15rem; }
+    .topbar { position: sticky; top: 0; z-index: 2; display: flex; min-height: 4.5rem; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--rule); background: oklch(98.5% .004 250 / .94); padding: .75rem clamp(1rem, 3vw, 2rem); backdrop-filter: blur(.75rem); }
+    .crumb { color: var(--muted); font-size: .8125rem; }
+    .prototype-note { display: inline-flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .8125rem; }
+    .prototype-note::before { width: .5rem; height: .5rem; border-radius: 50%; background: var(--warn); content: ""; }
+    .content { width: min(100%, 100rem); margin-inline: auto; padding: clamp(1.5rem, 4vw, 2.5rem); padding-bottom: 5rem; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 2rem; margin-bottom: 1.5rem; }
+    .page-head p:last-child { max-width: 60ch; margin: 0; color: var(--muted); }
+
+    .summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .summary-item { min-width: 0; padding: 1rem 1.25rem; }
+    .summary-item + .summary-item { border-inline-start: 1px solid var(--rule); }
+    .summary-item span { display: block; color: var(--muted); font-size: .75rem; }
+    .summary-item strong { display: block; margin-top: .25rem; font-family: var(--font-display); font-size: 1.25rem; }
+
+    .panel { margin-top: 1.5rem; border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .filter-bar { display: grid; grid-template-columns: minmax(15rem, 1fr) repeat(2, minmax(10rem, auto)) auto; gap: .75rem; border-bottom: 1px solid var(--rule); padding: 1rem; }
+    .control { min-height: 2.75rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .75rem; }
+    .search-wrap { position: relative; }
+    .search-wrap .icon { position: absolute; inset: .8rem auto auto .75rem; color: var(--muted); pointer-events: none; }
+    .search-wrap .control { width: 100%; padding-inline-start: 2.5rem; }
+    .table-meta { display: flex; min-height: 3rem; align-items: center; justify-content: space-between; gap: 1rem; padding: .625rem 1rem; color: var(--muted); font-size: .8125rem; }
+    .table-wrap { overflow-x: auto; border-top: 1px solid var(--rule); }
+    table { width: 100%; min-width: 76rem; border-collapse: collapse; }
+    th, td { padding: .875rem 1rem; text-align: left; vertical-align: middle; }
+    th { background: var(--surface-2); color: var(--muted); font: 600 .6875rem/1.3 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+    tbody tr { border-top: 1px solid var(--rule); }
+    tbody tr:first-child { border-top: 0; }
+    tbody tr[data-site-row] { cursor: pointer; }
+    tbody tr[data-site-row]:hover { background: var(--accent-soft); }
+    .site-cell { display: flex; min-width: 13rem; align-items: center; gap: .75rem; }
+    .site-glyph { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--ink-2); font: 700 .6875rem/1 var(--font-mono); }
+    .site-name { color: var(--ink); font-weight: 700; text-decoration: none; }
+    .site-name:hover { color: var(--accent); text-decoration: underline; text-underline-offset: .2rem; }
+    .inline-site { border: 0; background: transparent; padding: 0; text-align: left; }
+    .site-kind { display: block; margin-top: .15rem; color: var(--muted); font-size: .75rem; }
+    .cell-stack strong { display: block; font-size: .8125rem; }
+    .cell-stack span { display: block; margin-top: .15rem; color: var(--muted); font-size: .75rem; }
+    .action-cell { display: flex; align-items: center; gap: .5rem; }
+    .manage-link { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .manage-link:hover { text-decoration: underline; text-underline-offset: .2rem; }
+    .empty { padding: 3rem 1rem; text-align: center; }
+    .empty strong { display: block; margin-bottom: .25rem; font-family: var(--font-display); }
+    .empty span { color: var(--muted); }
+    .footer-note { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; color: var(--muted); font-size: .75rem; }
+    .toast { position: fixed; inset: 1rem 1rem auto auto; z-index: 30; max-width: 25rem; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); padding: .75rem 1rem; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transform: translateY(-.5rem); transition: opacity .15s ease-out, transform .15s ease-out; }
+    .toast.show { opacity: 1; transform: none; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 60rem) {
+      .side { position: sticky; top: 0; width: 100%; height: auto; flex-direction: row; align-items: center; border-inline-end: 0; border-bottom: 1px solid var(--rule); padding: .5rem 1rem; }
+      .side .nav-label, .side .nav-list, .side-bottom { display: none; }
+      .mobile-menu { display: inline-flex; margin-inline-start: auto; }
+      .page { margin-inline-start: 0; }
+      .topbar { position: static; }
+      .filter-bar { grid-template-columns: minmax(0, 1fr) repeat(2, minmax(9rem, auto)); }
+      .filter-bar .btn { grid-column: 1 / -1; justify-self: start; }
+    }
+    @media (max-width: 42rem) {
+      .topbar .prototype-note { display: none; }
+      .page-head { align-items: stretch; flex-direction: column; }
+      .page-head .btn { width: 100%; }
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary-item:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--rule); }
+      .summary-item:nth-child(4) { border-top: 1px solid var(--rule); }
+      .filter-bar { grid-template-columns: minmax(0, 1fr); }
+      .filter-bar .btn { grid-column: auto; width: 100%; }
+      .table-meta, .footer-note { align-items: flex-start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-site" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    <symbol id="i-backup" viewBox="0 0 24 24"><path d="M5 8a8 8 0 1 1-1 7M5 8V3M5 8h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-service" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A7 7 0 0 0 15 6L14.6 3h-4L10 6a7 7 0 0 0-1.5 1L6 6 4 9.4 6.1 11a7 7 0 0 0 0 2L4 14.6 6 18l2.5-1A7 7 0 0 0 10 18l.6 3h4l.5-3a7 7 0 0 0 1.4-1l2.5 1 2-3.4-2.1-1.6a7 7 0 0 0 .1-1Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </svg>
+
+  <aside class="side">
+    <div class="brand"><span class="brand-mark">TP</span>TomPanel</div>
+    <p class="nav-label">Manage</p>
+    <ul class="nav-list"><li><a class="nav-link" href="#" data-demo><svg class="icon"><use href="#i-grid"/></svg>Dashboard</a></li><li><a class="nav-link active" href="#"><svg class="icon"><use href="#i-site"/></svg>Sites</a></li><li><a class="nav-link" href="#" data-demo><svg class="icon"><use href="#i-site"/></svg>Domains</a></li><li><a class="nav-link" href="#" data-demo><svg class="icon"><use href="#i-db"/></svg>Databases</a></li><li><a class="nav-link" href="#" data-demo><svg class="icon"><use href="#i-backup"/></svg>Backups</a></li><li><a class="nav-link" href="#" data-demo><svg class="icon"><use href="#i-service"/></svg>Services</a></li></ul>
+    <button class="btn btn-quiet mobile-menu" type="button" data-demo aria-label="Open navigation"><svg class="icon"><use href="#i-menu"/></svg></button>
+    <div class="side-bottom"><a class="nav-link" href="#" data-demo><svg class="icon"><use href="#i-settings"/></svg>Settings</a><div class="server-mini"><strong class="mono">tom-vps-01</strong><span class="badge badge-good">All services online</span></div></div>
+  </aside>
+
+  <div class="page">
+    <header class="topbar"><div><div class="crumb">Sites / All sites</div><strong class="mono">tom-vps-01</strong></div><span class="prototype-note">Prototype · sample data</span></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Site workspace</p><h1>Sites</h1><p>Find a site, check its operational state, then open its Overview and management sections.</p></div><a class="btn btn-primary" href="tompanel-create-site-prototype.html"><svg class="icon"><use href="#i-plus"/></svg>Create site</a></header>
+
+      <section class="summary-strip" aria-label="Site summary"><div class="summary-item"><span>Total sites</span><strong>5</strong></div><div class="summary-item"><span>Healthy</span><strong>2</strong></div><div class="summary-item"><span>Needs attention</span><strong>2</strong></div><div class="summary-item"><span>Disabled</span><strong>1</strong></div></section>
+
+      <section class="panel" aria-labelledby="sites-heading">
+        <h2 id="sites-heading" hidden>All sites</h2>
+        <div class="filter-bar">
+          <label class="search-wrap"><span hidden>Search sites</span><svg class="icon"><use href="#i-search"/></svg><input class="control" id="site-search" type="search" placeholder="Search domain or application…" autocomplete="off"></label>
+          <label><span hidden>Status</span><select class="control" id="status-filter"><option value="all">All statuses</option><option value="active">Active</option><option value="attention">Needs attention</option><option value="disabled">Disabled</option></select></label>
+          <label><span hidden>Application</span><select class="control" id="type-filter"><option value="all">All applications</option><option value="wordpress">WordPress</option><option value="laravel">Laravel</option><option value="php">PHP</option><option value="static">Static</option></select></label>
+          <button class="btn" id="clear-filters" type="button">Clear filters</button>
+        </div>
+        <div class="table-meta"><span id="result-count">Showing 5 sites</span><span>Click a row to open Site Overview</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Site</th><th>Status</th><th>Exposure</th><th>Runtime</th><th>SSL</th><th>Last backup</th><th>Health</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr data-site-row data-search="store.example.com wordpress ecommerce" data-status="active" data-type="wordpress" data-overview="tompanel-site-overview-prototype.html">
+                <td><div class="site-cell"><span class="site-glyph">WP</span><div><a class="site-name" href="tompanel-site-overview-prototype.html">store.example.com</a><span class="site-kind">WordPress · Ecommerce</span></div></div></td><td><span class="badge badge-good">Active</span></td><td><div class="cell-stack"><strong>Public</strong><span>HTTPS · 443</span></div></td><td><div class="cell-stack"><strong>PHP 8.4</strong><span>Nginx + PHP-FPM</span></div></td><td><div class="cell-stack"><strong>Valid</strong><span>42 days</span></div></td><td><div class="cell-stack"><strong>Today · 03:10</strong><span>Files + database</span></div></td><td><span class="badge badge-good">Healthy</span></td><td><div class="action-cell"><a class="manage-link" href="tompanel-site-overview-prototype.html">Manage →</a><button class="btn btn-quiet" type="button" data-demo aria-label="Open store.example.com">↗</button></div></td>
+              </tr>
+              <tr data-site-row data-search="api.example.com laravel api" data-status="attention" data-type="laravel" data-site="api.example.com">
+                <td><div class="site-cell"><span class="site-glyph">LV</span><div><button class="inline-site site-name" type="button" data-demo>api.example.com</button><span class="site-kind">Laravel · API</span></div></div></td><td><span class="badge badge-good">Active</span></td><td><div class="cell-stack"><strong>Public</strong><span>HTTPS · 443</span></div></td><td><div class="cell-stack"><strong>PHP 8.4</strong><span>Queue + scheduler</span></div></td><td><div class="cell-stack"><strong>Valid</strong><span>67 days</span></div></td><td><div class="cell-stack"><strong>Failed · 06:14</strong><span>S3 timeout</span></div></td><td><span class="badge badge-warn">Warning</span></td><td><div class="action-cell"><button class="manage-link inline-site" type="button" data-demo>Manage →</button><button class="btn btn-quiet" type="button" data-demo aria-label="Open api.example.com">↗</button></div></td>
+              </tr>
+              <tr data-site-row data-search="intranet.lan php internal private" data-status="active" data-type="php" data-site="intranet.lan">
+                <td><div class="site-cell"><span class="site-glyph">PH</span><div><button class="inline-site site-name" type="button" data-demo>intranet.lan</button><span class="site-kind">PHP · Internal tool</span></div></div></td><td><span class="badge badge-good">Active</span></td><td><div class="cell-stack"><strong>Private</strong><span>SSH tunnel</span></div></td><td><div class="cell-stack"><strong>PHP 8.3</strong><span>Nginx + PHP-FPM</span></div></td><td><div class="cell-stack"><strong>Local CA</strong><span>Private endpoint</span></div></td><td><div class="cell-stack"><strong>Today · 03:18</strong><span>Files + database</span></div></td><td><span class="badge badge-good">Healthy</span></td><td><div class="action-cell"><button class="manage-link inline-site" type="button" data-demo>Manage →</button><button class="btn btn-quiet" type="button" data-demo aria-label="Open intranet.lan">↗</button></div></td>
+              </tr>
+              <tr data-site-row data-search="docs.example.com static documentation" data-status="disabled" data-type="static" data-site="docs.example.com">
+                <td><div class="site-cell"><span class="site-glyph">ST</span><div><button class="inline-site site-name" type="button" data-demo>docs.example.com</button><span class="site-kind">Static · Documentation</span></div></div></td><td><span class="badge badge-neutral">Disabled</span></td><td><div class="cell-stack"><strong>Port</strong><span>9080 · closed</span></div></td><td><div class="cell-stack"><strong>Static</strong><span>Nginx</span></div></td><td><div class="cell-stack"><strong>None</strong><span>Endpoint disabled</span></div></td><td><div class="cell-stack"><strong>3 days ago</strong><span>Files only</span></div></td><td><span class="badge badge-neutral">Paused</span></td><td><div class="action-cell"><button class="manage-link inline-site" type="button" data-demo>Manage →</button><button class="btn btn-quiet" type="button" data-demo aria-label="Open docs.example.com">↗</button></div></td>
+              </tr>
+              <tr data-site-row data-search="legacy.example.com php legacy" data-status="attention" data-type="php" data-site="legacy.example.com">
+                <td><div class="site-cell"><span class="site-glyph">PH</span><div><button class="inline-site site-name" type="button" data-demo>legacy.example.com</button><span class="site-kind">PHP · Legacy app</span></div></div></td><td><span class="badge badge-bad">Error</span></td><td><div class="cell-stack"><strong>Public</strong><span>HTTPS · 443</span></div></td><td><div class="cell-stack"><strong>PHP 8.2</strong><span>PHP-FPM stopped</span></div></td><td><div class="cell-stack"><strong>Expiring</strong><span>6 days</span></div></td><td><div class="cell-stack"><strong>9 days ago</strong><span>Backup overdue</span></div></td><td><span class="badge badge-bad">Failed</span></td><td><div class="action-cell"><button class="manage-link inline-site" type="button" data-demo>Manage →</button><button class="btn btn-quiet" type="button" data-demo aria-label="Open legacy.example.com">↗</button></div></td>
+              </tr>
+              <tr id="empty-row" hidden><td class="empty" colspan="8"><strong>No sites match these filters</strong><span>Change or clear the current filters.</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <footer class="footer-note"><span>Prototype data only · no live health checks</span><span>The first row connects to the approved sample Site Overview.</span></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite">Prototype only — no server action was performed.</div>
+
+  <script>
+    const search = document.querySelector("#site-search");
+    const statusFilter = document.querySelector("#status-filter");
+    const typeFilter = document.querySelector("#type-filter");
+    const rows = [...document.querySelectorAll("[data-site-row]")];
+    const emptyRow = document.querySelector("#empty-row");
+    const resultCount = document.querySelector("#result-count");
+    const toast = document.querySelector("#toast");
+    let toastTimer;
+
+    function filterRows() {
+      const query = search.value.trim().toLowerCase();
+      let shown = 0;
+      rows.forEach(row => {
+        const visible = row.dataset.search.includes(query)
+          && (statusFilter.value === "all" || row.dataset.status === statusFilter.value)
+          && (typeFilter.value === "all" || row.dataset.type === typeFilter.value);
+        row.hidden = !visible;
+        if (visible) shown += 1;
+      });
+      emptyRow.hidden = shown !== 0;
+      resultCount.textContent = `Showing ${shown} ${shown === 1 ? "site" : "sites"}`;
+    }
+
+    function showToast(message) {
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.classList.add("show");
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    search.addEventListener("input", filterRows);
+    statusFilter.addEventListener("change", filterRows);
+    typeFilter.addEventListener("change", filterRows);
+    document.querySelector("#clear-filters").addEventListener("click", () => {
+      search.value = "";
+      statusFilter.value = "all";
+      typeFilter.value = "all";
+      filterRows();
+      search.focus();
+    });
+
+    document.addEventListener("click", event => {
+      const row = event.target.closest("[data-site-row]");
+      if (row && !event.target.closest("a, button, input, select")) {
+        if (row.dataset.overview) location.href = row.dataset.overview;
+        else showToast(`${row.dataset.site} would open its Site Overview.`);
+      }
+      if (event.target.closest("[data-demo]")) {
+        event.preventDefault();
+        const site = event.target.closest("[data-site-row]")?.dataset.site;
+        showToast(site ? `${site} would open its Site Overview.` : "Prototype only — no server action was performed.");
+      }
+    });
+
+    filterRows();
+  </script>
+</body>
+</html>

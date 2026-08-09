@@ -1,6 +1,6 @@
 # TomPanel MVP Design Specification
 
-**Status:** Approved design, pending written-spec review  
+**Status:** Approved for implementation planning
 **Date:** 2026-08-08  
 **License:** MIT  
 **Target:** Ubuntu Server 24.04 LTS on AMD64
@@ -180,7 +180,7 @@ Secrets are encrypted per field with authenticated encryption using a master key
 - Idle timeout is 30 minutes; absolute lifetime is 12 hours.
 - Step-up password and TOTP verification is valid for five minutes for sensitive work.
 
-Password changes are allowed in the Panel after current-password and TOTP verification. Username changes, forgotten-password recovery, and TOTP reset require `sudo tompanel admin ...`. A credential reset invalidates every session and recovery code.
+Username changes, password changes or recovery, and TOTP reset are intentionally unavailable in the Panel. They require an interactive `sudo tompanel admin ...` command on the VPS. A credential reset invalidates every session and recovery code.
 
 ### 9.3 Endpoint modes
 
@@ -284,7 +284,7 @@ TomPanel stores the Cloudflare record ID and adds an ownership comment/tag. It u
 - Each site can own multiple databases and users.
 - Grants are limited to selected site databases.
 - The root agent uses local Unix-socket administration; no MariaDB root password is stored.
-- Site credentials are encrypted and can be revealed or rotated only after step-up authentication.
+- Site credentials are encrypted, shown once when created or rotated after step-up authentication, and cannot be retrieved later.
 
 ### Cache
 

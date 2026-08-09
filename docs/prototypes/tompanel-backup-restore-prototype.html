@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TomPanel Backup &amp; Restore Prototype</title>
+  <!-- PROTOTYPE — Selected direction: Variant A, Recovery first. All actions are in-memory. -->
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: oklch(98.5% .004 250); --surface: oklch(100% 0 0); --surface-2: oklch(96.5% .006 250);
+      --ink: oklch(24% .02 258); --ink-2: oklch(39% .018 257); --muted: oklch(57% .015 257);
+      --rule: oklch(89% .01 250); --rule-strong: oklch(78% .015 250); --accent: oklch(58% .20 256); --accent-soft: oklch(94% .035 256);
+      --good: oklch(55% .14 150); --good-soft: oklch(95% .035 150); --warn: oklch(66% .14 72); --warn-soft: oklch(96% .045 72);
+      --bad: oklch(57% .19 25); --bad-soft: oklch(95% .04 25); --graphite: oklch(22% .016 260);
+      --font-display: "Space Grotesk", "Avenir Next", system-ui, sans-serif; --font-body: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --radius-sm: .375rem; --radius-md: .625rem; --shadow: 0 .75rem 2.5rem oklch(20% .02 258 / .18);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 20rem; overflow-x: clip; }
+    body { min-height: 100dvh; background: var(--paper); color: var(--ink); font: 400 .9375rem/1.5 var(--font-body); }
+    button, input, select { font: inherit; } button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible { outline: .1875rem solid var(--accent); outline-offset: .125rem; }
+    button:active { transform: translateY(.0625rem); }
+    h1, h2, h3, p { margin-block-start: 0; } h1, h2, h3 { font-family: var(--font-display); overflow-wrap: anywhere; }
+    h1 { margin-block-end: .5rem; font-size: clamp(1.75rem, 3vw, 2.5rem); line-height: 1.1; letter-spacing: -.035em; }
+    h2 { margin-block-end: 1rem; font-size: 1.125rem; } h3 { margin-block-end: .5rem; font-size: 1rem; }
+    a { color: inherit; } .mono, code { font-family: var(--font-mono); font-size: .8125rem; } .muted { color: var(--muted); }
+    .eyebrow { margin: 0 0 .5rem; color: var(--muted); font: 500 .7rem/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .icon { width: 1.125rem; height: 1.125rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+    .btn { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: .5rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .875rem; font-weight: 650; text-decoration: none; white-space: nowrap; }
+    .btn:hover { border-color: var(--ink-2); background: var(--surface-2); } .btn-primary { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+    .btn-primary:hover { border-color: var(--accent); background: oklch(52% .20 256); } .btn-danger { border-color: var(--bad); background: var(--bad); color: var(--surface); }
+    .btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); } .btn[disabled] { cursor: not-allowed; opacity: .5; }
+    .badge { display: inline-flex; min-height: 1.5rem; align-items: center; gap: .375rem; border-radius: 999px; padding: .125rem .5rem; font-size: .75rem; font-weight: 650; white-space: nowrap; }
+    .badge::before { width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; content: ""; }
+    .badge-good { background: var(--good-soft); color: var(--good); } .badge-warn { background: var(--warn-soft); color: oklch(50% .12 68); }
+    .badge-bad { background: var(--bad-soft); color: var(--bad); } .badge-neutral { background: var(--surface-2); color: var(--ink-2); }
+
+    .side { position: fixed; inset: 0 auto 0 0; z-index: 3; display: flex; width: 15rem; flex-direction: column; border-inline-end: 1px solid var(--rule); background: var(--surface); padding: 1.25rem 1rem; }
+    .brand { display: flex; min-height: 2.75rem; align-items: center; gap: .75rem; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+    .brand-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); font: 700 .8125rem/1 var(--font-mono); }
+    .nav-label { margin: 1.5rem .75rem .5rem; color: var(--muted); font: 500 .6875rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .nav-list { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+    .nav-link { display: flex; min-height: 2.5rem; align-items: center; gap: .75rem; border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .nav-link:hover { background: var(--surface-2); } .nav-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+    .side-bottom { display: grid; gap: .75rem; margin-top: auto; border-top: 1px solid var(--rule); padding: 1rem .75rem 0; }
+    .page { min-height: 100dvh; margin-inline-start: 15rem; }
+    .topbar { position: sticky; top: 0; z-index: 2; display: flex; min-height: 4.5rem; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--rule); background: oklch(98.5% .004 250 / .94); padding: .75rem clamp(1rem, 3vw, 2rem); backdrop-filter: blur(.75rem); }
+    .crumb { color: var(--muted); font-size: .8125rem; } .prototype-note { color: var(--muted); font-size: .8125rem; }
+    .content { width: min(100%, 96rem); margin-inline: auto; padding: clamp(1.5rem, 4vw, 2.5rem); padding-bottom: 6rem; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 2rem; margin-bottom: 1.5rem; }
+    .page-head p:last-child { max-width: 64ch; margin: 0; color: var(--muted); } .head-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .summary-item { min-width: 0; padding: 1rem 1.25rem; } .summary-item + .summary-item { border-inline-start: 1px solid var(--rule); }
+    .summary-item span { display: block; color: var(--muted); font-size: .75rem; } .summary-item strong { display: block; margin-top: .25rem; overflow-wrap: anywhere; }
+    .panel { border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--rule); padding: 1rem 1.25rem; }
+    .panel-head h2 { margin: 0; } .panel-body { padding: 1.25rem; } .stack { display: grid; gap: 1.5rem; }
+    .notice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1rem; align-items: center; border: 1px solid var(--warn); border-radius: var(--radius-md); background: var(--warn-soft); padding: 1rem 1.25rem; }
+    .notice strong { display: block; } .notice p { margin: .2rem 0 0; color: var(--ink-2); font-size: .8125rem; }
+    .notice-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 50%; background: var(--warn); font-weight: 800; }
+    .a-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(18rem, .5fr); gap: 1.5rem; margin-top: 1.5rem; align-items: start; }
+    .table-wrap { overflow-x: auto; } table { width: 100%; min-width: 58rem; border-collapse: collapse; }
+    th, td { padding: .875rem 1rem; text-align: left; vertical-align: middle; } th { background: var(--surface-2); color: var(--muted); font: 600 .6875rem/1.3 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+    tbody tr { border-top: 1px solid var(--rule); } tbody tr:first-child { border-top: 0; } .site-name { font-weight: 700; } .subline { display: block; margin-top: .15rem; color: var(--muted); font-size: .75rem; }
+    .action-link { border: 0; background: transparent; color: var(--accent); padding: .25rem 0; font-weight: 700; white-space: nowrap; }
+    .detail-row { display: grid; grid-template-columns: minmax(8rem, .6fr) minmax(0, 1fr); gap: .75rem; padding: .75rem 0; }
+    .detail-row + .detail-row { border-top: 1px solid var(--rule); } .detail-row span:first-child { color: var(--muted); } .detail-row strong { overflow-wrap: anywhere; }
+    .meter { height: .5rem; overflow: hidden; border-radius: 999px; background: var(--surface-2); } .meter::before { display: block; width: 78%; height: 100%; background: var(--warn); content: ""; }
+    .meter-copy { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .5rem; font-size: .8125rem; }
+
+    dialog { width: min(38rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; border: 1px solid var(--rule-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); padding: 0; box-shadow: var(--shadow); }
+    dialog::backdrop { background: oklch(18% .02 258 / .5); } .dialog-copy { padding: 1.5rem; } .dialog-copy > p { color: var(--muted); }
+    .field { display: grid; gap: .5rem; margin-top: 1rem; } .field > span, .field-label { font-weight: 650; }
+    .control { width: 100%; min-height: 2.75rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .75rem; }
+    .check-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .75rem; align-items: start; border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: .875rem; }
+    .check-row + .check-row { margin-top: .5rem; } .check-row input { margin-top: .25rem; } .check-row strong, .check-row small { display: block; } .check-row small { color: var(--muted); }
+    .restore-summary { border: 1px solid var(--warn); border-radius: var(--radius-sm); background: var(--warn-soft); padding: 1rem; }
+    .restore-summary p { margin: .25rem 0 0; color: var(--ink-2); font-size: .8125rem; }
+    .restore-steps { margin: 1rem 0 0; padding-inline-start: 1.25rem; color: var(--ink-2); font-size: .8125rem; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; border-top: 1px solid var(--rule); padding: 1rem 1.5rem; }
+    .progress-list { display: grid; gap: .75rem; margin: 1rem 0 0; padding: 0; list-style: none; } .progress-list li { display: flex; align-items: center; gap: .75rem; color: var(--muted); }
+    .progress-list li::before { width: .55rem; height: .55rem; border-radius: 50%; background: var(--rule-strong); content: ""; } .progress-list li.done { color: var(--ink); } .progress-list li.done::before { background: var(--good); }
+    .toast { position: fixed; inset: 1rem 1rem auto auto; z-index: 40; max-width: 25rem; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); padding: .75rem 1rem; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transform: translateY(-.5rem); transition: opacity .15s ease-out, transform .15s ease-out; }
+    .toast.show { opacity: 1; transform: none; } [hidden] { display: none !important; }
+
+    @media (max-width: 70rem) { .a-grid { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 60rem) { .side { position: static; width: 100%; height: auto; flex-direction: row; border-inline-end: 0; border-bottom: 1px solid var(--rule); } .side .nav-label, .side .nav-list, .side-bottom { display: none; } .page { margin-inline-start: 0; } .topbar { position: static; } }
+    @media (max-width: 42rem) { .topbar .prototype-note { display: none; } .page-head { align-items: stretch; flex-direction: column; } .head-actions, .head-actions .btn { width: 100%; } .summary-strip { grid-template-columns: minmax(0, 1fr); } .summary-item + .summary-item { border-inline-start: 0; border-top: 1px solid var(--rule); } .notice { grid-template-columns: auto minmax(0, 1fr); } .notice .btn { grid-column: 2; justify-self: start; } .dialog-actions { flex-direction: column-reverse; } .dialog-actions .btn { width: 100%; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-site" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    <symbol id="i-backup" viewBox="0 0 24 24"><path d="M5 8a8 8 0 1 1-1 7M5 8V3M5 8h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-service" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A7 7 0 0 0 15 6L14.6 3h-4L10 6a7 7 0 0 0-1.5 1L6 6 4 9.4 6.1 11a7 7 0 0 0 0 2L4 14.6 6 18l2.5-1A7 7 0 0 0 10 18l.6 3h4l.5-3a7 7 0 0 0 1.4-1l2.5 1 2-3.4-2.1-1.6a7 7 0 0 0 .1-1Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </svg>
+
+  <aside class="side"><div class="brand"><span class="brand-mark">TP</span>TomPanel</div><p class="nav-label">Manage</p><ul class="nav-list"><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-site"/></svg>Sites</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-site"/></svg>Domains</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-db"/></svg>Databases</a></li><li><a class="nav-link active" href="#"><svg class="icon"><use href="#i-backup"/></svg>Backups</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-service"/></svg>Services</a></li></ul><div class="side-bottom"><a class="nav-link" href="#"><svg class="icon"><use href="#i-settings"/></svg>Settings</a><div><strong class="mono">tom-vps-01</strong><br><span class="badge badge-good">Worker online</span></div></div></aside>
+  <div class="page"><header class="topbar"><div><div class="crumb">Backups / Recovery</div><strong class="mono">tom-vps-01</strong></div><span class="prototype-note">Prototype · sample backups</span></header><main class="content">
+    <header class="page-head"><div><p class="eyebrow">Recovery workspace</p><h1>Backup &amp; Restore</h1><p>Know whether every site is recoverable, create a verified restore point, and restore through a guarded sequence.</p></div><div class="head-actions"><button class="btn" type="button" data-demo="Open backup policy">Backup policy</button><button class="btn btn-primary" type="button" data-create><svg class="icon"><use href="#i-plus"/></svg>Create backup</button></div></header>
+
+    <section>
+      <div class="notice"><span class="notice-mark">!</span><div><strong>Local-only backup cannot recover a lost VPS</strong><p>Two sites still need an encrypted S3/R2 copy.</p></div><button class="btn" type="button" data-demo="Configure off-site storage">Configure storage</button></div>
+      <section class="summary-strip" aria-label="Recovery summary" style="margin-top:1.5rem"><div class="summary-item"><span>Protected sites</span><strong>3 of 5</strong></div><div class="summary-item"><span>Latest verified</span><strong>Today · 03:18</strong></div><div class="summary-item"><span>Local storage</span><strong>78% used</strong></div><div class="summary-item"><span>Off-site</span><strong>S3/R2 connected</strong></div></section>
+      <div class="a-grid"><section class="panel"><header class="panel-head"><h2>Recent restore points</h2><button class="action-link" type="button" data-demo="Filter backups">Filter</button></header><div class="table-wrap"><table><thead><tr><th>Site</th><th>Created</th><th>Contents</th><th>Destinations</th><th>Integrity</th><th>Action</th></tr></thead><tbody>
+        <tr><td><span class="site-name">store.example.com</span><span class="subline">Automatic · 1.2 GB</span></td><td>Today · 03:10</td><td>Files + database</td><td>Local + S3</td><td><span class="badge badge-good">Verified</span></td><td><button class="action-link" type="button" data-restore data-site="store.example.com" data-backup="Today · 03:10">Restore</button></td></tr>
+        <tr><td><span class="site-name">api.example.com</span><span class="subline">Automatic · 684 MB</span></td><td>Today · 03:14</td><td>Files + database</td><td>Local only</td><td><span class="badge badge-warn">S3 failed</span></td><td><button class="action-link" type="button" data-restore data-site="api.example.com" data-backup="Today · 03:14">Restore</button></td></tr>
+        <tr><td><span class="site-name">intranet.lan</span><span class="subline">Automatic · 220 MB</span></td><td>Today · 03:18</td><td>Files + database</td><td>Local only</td><td><span class="badge badge-good">Verified</span></td><td><button class="action-link" type="button" data-restore data-site="intranet.lan" data-backup="Today · 03:18">Restore</button></td></tr>
+        <tr><td><span class="site-name">legacy.example.com</span><span class="subline">Automatic · 2.8 GB</span></td><td>9 days ago</td><td>Files + database</td><td>Local + S3</td><td><span class="badge badge-bad">Overdue</span></td><td><button class="action-link" type="button" data-restore data-site="legacy.example.com" data-backup="9 days ago">Restore</button></td></tr>
+      </tbody></table></div></section><aside class="stack"><section class="panel"><header class="panel-head"><h2>Storage guard</h2><span class="badge badge-warn">Watch</span></header><div class="panel-body"><div class="meter-copy"><span>Local backup disk</span><strong>78%</strong></div><div class="meter" aria-label="Local backup disk 78 percent used"></div><p class="muted" style="margin:1rem 0 0">New backups stop at 85% usage or below 2 GB free.</p></div></section><section class="panel"><header class="panel-head"><h2>Automatic policy</h2></header><div class="panel-body"><div class="detail-row"><span>Schedule</span><strong>Daily · randomized</strong></div><div class="detail-row"><span>Retention</span><strong>7 automatic / site</strong></div><div class="detail-row"><span>Database</span><strong>Consistent dump</strong></div><div class="detail-row"><span>Files</span><strong>Best-effort manifest</strong></div></div></section></aside></div>
+    </section>
+
+  </main></div>
+
+  <dialog id="create-dialog" aria-labelledby="create-title"><form id="create-form"><div class="dialog-copy"><p class="eyebrow">Manual restore point</p><h2 id="create-title">Create backup</h2><p>Manual backups are retained until removed or the storage guard needs attention.</p><label class="field"><span>Site</span><select class="control" name="site" required><option>store.example.com</option><option>api.example.com</option><option>intranet.lan</option><option>legacy.example.com</option></select></label><div class="field"><span class="field-label">Contents</span><label class="check-row"><input name="files" type="checkbox" checked><span><strong>Site files</strong><small>Archive with checksums and a versioned manifest.</small></span></label><label class="check-row"><input name="database" type="checkbox" checked><span><strong>Database</strong><small>Transactionally consistent MariaDB dump.</small></span></label></div><div class="field"><span class="field-label">Consistency</span><label class="check-row"><input name="maintenance" type="checkbox" checked><span><strong>Use application maintenance mode</strong><small>Recommended for stronger file and database consistency.</small></span></label></div><div class="field"><span class="field-label">Destinations</span><label class="check-row"><input name="local" type="checkbox" checked><span><strong>Local storage</strong><small>Fast restore on this VPS.</small></span></label><label class="check-row"><input name="offsite" type="checkbox" checked><span><strong>Encrypted S3/R2</strong><small>Stream through age encryption before upload.</small></span></label></div></div><div class="dialog-actions"><button class="btn" type="button" data-close="create-dialog">Cancel</button><button class="btn btn-primary" type="submit">Create backup</button></div></form></dialog>
+
+  <dialog id="restore-dialog" aria-labelledby="restore-title"><form id="restore-form"><div class="dialog-copy" id="restore-review"><p class="eyebrow">Guarded restore</p><h2 id="restore-title">Restore <span id="restore-site-title">site</span>?</h2><div class="restore-summary"><strong id="restore-point">Selected restore point</strong><p>Manifest and checksums will be verified before any current data changes.</p></div><ol class="restore-steps"><li>Verify and decrypt the selected backup.</li><li>Create a pre-restore backup.</li><li>Enter maintenance mode and restore into temporary resources.</li><li>Health-check, atomically activate, or roll back.</li></ol><label class="field"><span>Type the site domain</span><input class="control mono" id="restore-name" type="text" autocomplete="off" required></label><label class="field"><span>Current password</span><input class="control" id="restore-password" type="password" autocomplete="current-password" required></label><label class="field"><span>TOTP code</span><input class="control mono" id="restore-totp" type="text" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></label></div><div class="dialog-copy" id="restore-progress" hidden><p class="eyebrow">Restore job</p><h2>Restoring safely</h2><p>The current site stays protected until the restored copy passes health checks.</p><ul class="progress-list"><li data-progress>Verify manifest and checksums</li><li data-progress>Create pre-restore backup</li><li data-progress>Restore temporary files and database</li><li data-progress>Health-check and activate</li></ul></div><div class="dialog-actions"><button class="btn" type="button" data-close="restore-dialog">Cancel</button><button class="btn btn-danger" id="confirm-restore" type="submit" disabled>Verify and restore</button></div></form></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite">Prototype only — no server action was performed.</div>
+
+  <script>
+    const createDialog = document.querySelector("#create-dialog");
+    const restoreDialog = document.querySelector("#restore-dialog");
+    const restoreForm = document.querySelector("#restore-form");
+    const restoreName = document.querySelector("#restore-name");
+    const restorePassword = document.querySelector("#restore-password");
+    const restoreTotp = document.querySelector("#restore-totp");
+    const confirmRestore = document.querySelector("#confirm-restore");
+    const toast = document.querySelector("#toast");
+    let expectedSite = "";
+    let toastTimer;
+
+    function showToast(message) {
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.classList.add("show");
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2800);
+    }
+
+    function canRestore(site, password, totp) {
+      return site === expectedSite && password.length > 0 && /^\d{6}$/.test(totp);
+    }
+
+    function updateRestoreButton() {
+      confirmRestore.disabled = !canRestore(restoreName.value.trim(), restorePassword.value, restoreTotp.value);
+    }
+
+    function openRestore(button) {
+      expectedSite = button.dataset.site;
+      restoreForm.reset();
+      document.querySelector("#restore-site-title").textContent = expectedSite;
+      document.querySelector("#restore-point").textContent = `${button.dataset.backup} · ${expectedSite}`;
+      document.querySelector("#restore-review").hidden = false;
+      document.querySelector("#restore-progress").hidden = true;
+      document.querySelectorAll("[data-progress]").forEach(item => item.classList.remove("done"));
+      confirmRestore.hidden = false;
+      confirmRestore.disabled = true;
+      restoreDialog.showModal();
+    }
+
+    document.addEventListener("click", event => {
+      const closeButton = event.target.closest("[data-close]");
+      const restoreButton = event.target.closest("[data-restore]");
+      if (event.target.closest("[data-create]")) createDialog.showModal();
+      if (restoreButton) openRestore(restoreButton);
+      if (closeButton) document.querySelector(`#${closeButton.dataset.close}`).close();
+      if (event.target.closest("[data-demo]")) showToast(`${event.target.closest("[data-demo]").dataset.demo}: prototype only.`);
+      const link = event.target.closest('a[href="#"]');
+      if (link) { event.preventDefault(); showToast("Navigation is disabled in this prototype."); }
+    });
+
+    [restoreName, restorePassword, restoreTotp].forEach(input => input.addEventListener("input", updateRestoreButton));
+    document.querySelector("#create-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      if (!form.has("files") && !form.has("database")) return showToast("Select files, database, or both.");
+      if (!form.has("local") && !form.has("offsite")) return showToast("Select at least one destination.");
+      createDialog.close();
+      showToast(`Backup job queued for ${form.get("site")}.`);
+    });
+
+    restoreForm.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!canRestore(restoreName.value.trim(), restorePassword.value, restoreTotp.value)) return;
+      document.querySelector("#restore-review").hidden = true;
+      document.querySelector("#restore-progress").hidden = false;
+      confirmRestore.hidden = true;
+      [...document.querySelectorAll("[data-progress]")].forEach((item, index) => setTimeout(() => item.classList.add("done"), 350 * (index + 1)));
+      setTimeout(() => { restoreDialog.close(); showToast(`${expectedSite} restore simulation completed with health check.`); }, 1900);
+    });
+
+    console.assert((expectedSite = "site.test", canRestore("site.test", "password", "123456")) === true, "Restore validation self-check failed");
+    expectedSite = "";
+  </script>
+</body>
+</html>

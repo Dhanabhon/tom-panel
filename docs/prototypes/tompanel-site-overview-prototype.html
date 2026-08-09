@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TomPanel Site Overview Prototype</title>
+  <!-- PROTOTYPE — WordPress Site Overview in the approved Operations-first shell. No server mutations. -->
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: oklch(98.5% 0.004 250);
+      --surface: oklch(100% 0 0);
+      --surface-2: oklch(96.5% 0.006 250);
+      --ink: oklch(24% 0.02 258);
+      --ink-2: oklch(39% 0.018 257);
+      --muted: oklch(57% 0.015 257);
+      --rule: oklch(89% 0.01 250);
+      --rule-strong: oklch(78% 0.015 250);
+      --accent: oklch(58% 0.20 256);
+      --accent-soft: oklch(94% 0.035 256);
+      --accent-ink: oklch(100% 0 0);
+      --good: oklch(55% 0.14 150);
+      --good-soft: oklch(95% 0.035 150);
+      --warn: oklch(66% 0.14 72);
+      --warn-soft: oklch(96% 0.045 72);
+      --bad: oklch(57% 0.19 25);
+      --bad-soft: oklch(95% 0.04 25);
+      --graphite: oklch(22% 0.016 260);
+      --font-display: "Space Grotesk", "Avenir Next", system-ui, sans-serif;
+      --font-body: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --space-1: .25rem;
+      --space-2: .5rem;
+      --space-3: .75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --radius-sm: .375rem;
+      --radius-md: .625rem;
+      --shadow: 0 .75rem 2.5rem oklch(20% 0.02 258 / .2);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 20rem; overflow-x: clip; }
+    body { min-height: 100dvh; background: var(--paper); color: var(--ink); font: 400 .9375rem/1.5 var(--font-body); }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible { outline: .1875rem solid var(--accent); outline-offset: .125rem; }
+    button:active { transform: translateY(.0625rem); }
+    h1, h2, h3, p { margin-block-start: 0; }
+    h1, h2, h3 { font-family: var(--font-display); font-style: normal; overflow-wrap: anywhere; }
+    h1 { margin-block-end: var(--space-2); font-size: clamp(1.65rem, 3vw, 2.5rem); line-height: 1.12; letter-spacing: -.03em; }
+    h2 { margin-block-end: var(--space-4); font-size: 1.15rem; line-height: 1.25; }
+    h3 { margin-block-end: var(--space-2); font-size: 1rem; }
+    a { color: inherit; }
+    .mono { font-family: var(--font-mono); font-size: .8125rem; }
+    .muted { color: var(--muted); }
+    .eyebrow { margin: 0 0 var(--space-2); color: var(--muted); font: 500 .7rem/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .icon { width: 1.125rem; height: 1.125rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+    .prototype-note { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: .8125rem; }
+    .prototype-note::before { width: .5rem; height: .5rem; border-radius: 50%; background: var(--warn); content: ""; }
+
+    .btn { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .875rem; font-weight: 650; white-space: nowrap; }
+    .btn:hover { border-color: var(--ink-2); background: var(--surface-2); }
+    .btn-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover { border-color: var(--accent); background: oklch(52% 0.20 256); }
+    .btn-danger { border-color: var(--bad); background: var(--bad); color: var(--surface); }
+    .btn-danger:hover { border-color: var(--bad); background: oklch(51% .19 25); }
+    .btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+    .btn[disabled] { cursor: not-allowed; opacity: .48; }
+    .icon-btn { width: 2.75rem; padding-inline: 0; }
+    .badge { display: inline-flex; min-height: 1.5rem; align-items: center; gap: .375rem; border-radius: 999px; padding: .125rem .5rem; font-size: .75rem; font-weight: 650; white-space: nowrap; }
+    .badge::before { width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; content: ""; }
+    .badge-good { background: var(--good-soft); color: var(--good); }
+    .badge-warn { background: var(--warn-soft); color: oklch(50% 0.12 68); }
+    .badge-bad { background: var(--bad-soft); color: var(--bad); }
+    .badge-neutral { background: var(--surface-2); color: var(--ink-2); }
+
+    .side { position: fixed; inset: 0 auto 0 0; z-index: 3; display: flex; width: 15rem; flex-direction: column; border-inline-end: 1px solid var(--rule); background: var(--surface); padding: var(--space-5) var(--space-4); }
+    .brand { display: flex; min-height: 2.75rem; align-items: center; gap: var(--space-3); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+    .brand-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); font-family: var(--font-mono); font-size: .8125rem; }
+    .nav-label { margin: var(--space-6) var(--space-3) var(--space-2); color: var(--muted); font: 500 .6875rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .nav-list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+    .nav-link { display: flex; min-height: 2.5rem; align-items: center; gap: var(--space-3); border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .nav-link:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+    .side-bottom { display: grid; gap: var(--space-3); margin-top: auto; }
+    .server-mini { border-top: 1px solid var(--rule); padding-top: var(--space-4); }
+    .server-mini strong { display: block; margin-bottom: var(--space-1); }
+    .mobile-menu { display: none; }
+
+    .page { min-height: 100dvh; margin-inline-start: 15rem; }
+    .topbar { position: sticky; top: 0; z-index: 2; display: flex; min-height: 4.5rem; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); background: oklch(98.5% 0.004 250 / .94); padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8)); backdrop-filter: blur(.75rem); }
+    .crumb { color: var(--muted); font-size: .8125rem; }
+    .content { width: min(100%, 96rem); margin-inline: auto; padding: clamp(var(--space-6), 4vw, var(--space-10)); padding-bottom: 6rem; }
+    .site-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-6); }
+    .site-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+    .site-title-row h1 { margin: 0; }
+    .site-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); color: var(--muted); }
+    .head-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+    .site-mobile-nav { display: none; }
+    .site-workspace { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+    .site-nav { position: sticky; top: 6rem; border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); padding: var(--space-2); }
+    .site-nav a { display: flex; min-height: 2.5rem; align-items: center; border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .site-nav a:hover { background: var(--surface-2); }
+    .site-nav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+
+    .attention { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; border: 1px solid var(--warn); border-radius: var(--radius-md); background: var(--warn-soft); padding: var(--space-4) var(--space-5); }
+    .attention-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: 50%; background: var(--warn); color: var(--ink); font-weight: 800; }
+    .attention h2 { margin: 0 0 var(--space-1); font-size: 1rem; }
+    .attention p { margin: 0; color: var(--ink-2); font-size: .8125rem; }
+
+    .status-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: var(--space-6); border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .status-item { min-width: 0; padding: var(--space-4) var(--space-5); }
+    .status-item + .status-item { border-inline-start: 1px solid var(--rule); }
+    .status-item span { display: block; color: var(--muted); font-size: .75rem; }
+    .status-item strong { display: block; margin-top: var(--space-1); overflow-wrap: anywhere; }
+    .overview-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(17rem, .55fr); gap: var(--space-6); margin-top: var(--space-6); align-items: start; }
+    .stack { display: grid; gap: var(--space-6); }
+    .panel { border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); padding: var(--space-4) var(--space-5); }
+    .panel-head h2 { margin: 0; }
+    .panel-body { padding: var(--space-5); }
+    .detail-list { margin: 0; }
+    .detail-row { display: grid; grid-template-columns: minmax(8rem, .55fr) minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; }
+    .detail-row + .detail-row { border-top: 1px solid var(--rule); }
+    .detail-term { color: var(--muted); }
+    .detail-value { font-weight: 600; overflow-wrap: anywhere; }
+    .action-link { border: 0; background: transparent; color: var(--accent); padding: .25rem 0; font-weight: 650; white-space: nowrap; }
+    .quick-list { display: grid; gap: var(--space-2); }
+    .quick-list .btn { justify-content: flex-start; width: 100%; }
+    .activity-list { margin: 0; padding: 0; list-style: none; }
+    .activity-row { display: grid; grid-template-columns: 7rem minmax(0, 1fr) auto; gap: var(--space-3); align-items: start; padding: var(--space-3) 0; }
+    .activity-row + .activity-row { border-top: 1px solid var(--rule); }
+    .activity-row time { color: var(--muted); font: .75rem/1.5 var(--font-mono); }
+    .activity-row p { margin: .15rem 0 0; color: var(--muted); font-size: .8125rem; }
+    .service-list { display: grid; gap: 0; }
+    .service-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; }
+    .service-row + .service-row { border-top: 1px solid var(--rule); }
+
+    .danger { margin-top: var(--space-8); border: 1px solid var(--bad); border-radius: var(--radius-md); background: var(--surface); }
+    .danger summary { display: flex; min-height: 3.5rem; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-5); color: var(--bad); cursor: pointer; font-weight: 700; list-style: none; }
+    .danger summary::-webkit-details-marker { display: none; }
+    .danger summary::after { content: "+"; font: 500 1.25rem/1 var(--font-mono); }
+    .danger[open] summary::after { content: "−"; }
+    .danger-body { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); border-top: 1px solid var(--bad); padding: var(--space-5); }
+    .danger-body p { max-width: 65ch; margin: 0; color: var(--ink-2); }
+
+    dialog { width: min(33rem, calc(100% - 2rem)); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); padding: 0; box-shadow: var(--shadow); }
+    dialog::backdrop { background: oklch(18% 0.02 258 / .5); }
+    .dialog-copy { padding: var(--space-5); }
+    .dialog-copy p:last-child { margin-bottom: 0; }
+    .field { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+    .field > span { font-weight: 650; }
+    .field small { min-height: 1lh; color: var(--muted); }
+    .input { width: 100%; min-height: 2.75rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); outline: .125rem solid transparent; outline-offset: .0625rem; background: var(--surface); color: var(--ink); padding: .625rem .75rem; }
+    .input:focus-visible { outline-color: var(--accent); }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); border-top: 1px solid var(--rule); padding: var(--space-4) var(--space-5); }
+    .toast { position: fixed; inset: var(--space-4) var(--space-4) auto auto; z-index: 30; max-width: 24rem; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); padding: var(--space-3) var(--space-4); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transform: translateY(-.5rem); transition: opacity .15s ease-out, transform .15s ease-out; }
+    .toast.show { opacity: 1; transform: none; }
+
+    @media (max-width: 70rem) {
+      .site-workspace { grid-template-columns: minmax(0, 1fr); }
+      .site-nav { display: none; }
+      .site-mobile-nav { display: block; margin-bottom: var(--space-4); }
+      .site-mobile-nav select { width: 100%; min-height: 2.75rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .75rem; }
+    }
+    @media (max-width: 60rem) {
+      .side { position: sticky; top: 0; width: 100%; height: auto; flex-direction: row; align-items: center; border-inline-end: 0; border-bottom: 1px solid var(--rule); padding: var(--space-2) var(--space-4); }
+      .side > .nav-label, .side > .nav-list, .side-bottom { display: none; }
+      .side .brand { margin-inline-end: auto; }
+      .mobile-menu { display: inline-flex; }
+      .page { margin-inline-start: 0; }
+      .topbar { position: static; }
+      .overview-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 40rem) {
+      .topbar { min-height: 4rem; padding-inline: var(--space-4); }
+      .topbar .prototype-note { display: none; }
+      .content { padding-inline: var(--space-4); }
+      .site-head, .danger-body { align-items: stretch; flex-direction: column; }
+      .head-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+      .head-actions .btn { width: 100%; }
+      .attention { grid-template-columns: auto minmax(0, 1fr); }
+      .attention .btn { grid-column: 2; justify-self: start; }
+      .status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .status-item:nth-child(3) { border-inline-start: 0; border-top: 1px solid var(--rule); }
+      .status-item:nth-child(4) { border-top: 1px solid var(--rule); }
+      .detail-row, .activity-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+      .detail-row .action-link, .activity-row .badge { justify-self: start; }
+      .dialog-actions { flex-direction: column-reverse; }
+      .dialog-actions .btn { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-site" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    <symbol id="i-backup" viewBox="0 0 24 24"><path d="M5 8a8 8 0 1 1-1 7M5 8V3M5 8h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-service" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A7 7 0 0 0 15 6L14.6 3h-4L10 6a7 7 0 0 0-1.5 1L6 6 4 9.4 6.1 11a7 7 0 0 0 0 2L4 14.6 6 18l2.5-1A7 7 0 0 0 10 18l.6 3h4l.5-3a7 7 0 0 0 1.4-1l2.5 1 2-3.4-2.1-1.6a7 7 0 0 0 .1-1Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  </svg>
+
+  <aside class="side">
+    <div class="brand"><span class="brand-mark">TP</span> TomPanel</div>
+    <p class="nav-label">Manage</p>
+    <ul class="nav-list"><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</a></li><li><a class="nav-link active" href="#"><svg class="icon"><use href="#i-site"/></svg>Sites</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-site"/></svg>Domains</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-db"/></svg>Databases</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-backup"/></svg>Backups</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-service"/></svg>Services</a></li></ul>
+    <button class="btn btn-quiet icon-btn mobile-menu" type="button" aria-label="Open navigation" data-demo><svg class="icon"><use href="#i-menu"/></svg></button>
+    <div class="side-bottom"><a class="nav-link" href="#"><svg class="icon"><use href="#i-settings"/></svg>Settings</a><div class="server-mini"><strong>tom-vps-01</strong><span class="badge badge-good">All services online</span></div></div>
+  </aside>
+
+  <div class="page">
+    <header class="topbar"><div><div class="crumb">Sites / store.example.com / Overview</div><strong class="mono">tom-vps-01</strong></div><span class="prototype-note">Prototype · sample site</span></header>
+    <main class="content">
+      <header class="site-head">
+        <div><p class="eyebrow">WordPress site</p><div class="site-title-row"><h1>store.example.com</h1><span class="badge badge-good">Active</span></div><div class="site-meta"><span>WordPress 6.x</span><span>PHP 8.4</span><span class="mono">site_01JZ…</span></div></div>
+        <div class="head-actions"><button class="btn" type="button" data-action="Open WP Admin">WP Admin ↗</button><button class="btn btn-primary" type="button" data-action="Open site">Open site ↗</button></div>
+      </header>
+
+      <label class="site-mobile-nav"><span class="eyebrow">Site section</span><select data-demo><option>Overview</option><option>Domains &amp; SSL</option><option>Files &amp; Access</option><option>Runtime</option><option>Databases</option><option>Applications</option><option>Backups</option><option>Logs</option></select></label>
+
+      <div class="site-workspace">
+        <nav class="site-nav" aria-label="Site sections"><a class="active" href="#">Overview</a><a href="#">Domains &amp; SSL</a><a href="#">Files &amp; Access</a><a href="#">Runtime</a><a href="#">Databases</a><a href="#">Applications</a><a href="#">Backups</a><a href="#">Logs</a></nav>
+
+        <div>
+          <section class="attention"><span class="attention-mark">!</span><div><h2>WordPress update is ready</h2><p>Review the release notes and create a backup before updating core.</p></div><button class="btn" type="button" data-action="Review WordPress update">Review update</button></section>
+
+          <section class="status-strip" aria-label="Site status">
+            <div class="status-item"><span>HTTPS</span><strong>Valid · 42 days</strong></div>
+            <div class="status-item"><span>Last backup</span><strong>Today · 03:10</strong></div>
+            <div class="status-item"><span>PHP-FPM</span><strong>Running · 8.4</strong></div>
+            <div class="status-item"><span>Response</span><strong>Healthy · 148 ms</strong></div>
+          </section>
+
+          <div class="overview-grid">
+            <div class="stack">
+              <section class="panel"><header class="panel-head"><h2>Application</h2><span class="badge badge-good">Healthy</span></header><div class="panel-body"><div class="detail-list"><div class="detail-row"><span class="detail-term">WordPress core</span><span class="detail-value">6.x · update available</span><button class="action-link" type="button" data-action="Review core update">Review</button></div><div class="detail-row"><span class="detail-term">Page cache</span><span class="detail-value">Enabled · cleared 2h ago</span><button class="action-link" type="button" data-action="Clear page cache">Clear</button></div><div class="detail-row"><span class="detail-term">Object cache</span><span class="detail-value">Redis · connected</span><button class="action-link" type="button" data-action="Open cache settings">Settings</button></div><div class="detail-row"><span class="detail-term">WP-Cron</span><span class="detail-value">System cron · every 5 min</span><button class="action-link" type="button" data-action="Open cron settings">Settings</button></div><div class="detail-row"><span class="detail-term">Update policy</span><span class="detail-value">Security and minor core updates</span><button class="action-link" type="button" data-action="Open update policy">Edit</button></div></div></div></section>
+
+              <section class="panel"><header class="panel-head"><h2>Resources</h2><button class="action-link" type="button" data-action="Open runtime">Open runtime →</button></header><div class="panel-body"><div class="detail-list"><div class="detail-row"><span class="detail-term">Document root</span><strong class="detail-value mono">/srv/tompanel/sites/site_01JZ/app</strong><span class="badge badge-neutral">Managed</span></div><div class="detail-row"><span class="detail-term">Database</span><strong class="detail-value mono">wp_store</strong><span class="badge badge-good">Connected</span></div><div class="detail-row"><span class="detail-term">SFTP</span><strong class="detail-value mono">store_sftp</strong><span class="badge badge-good">Enabled</span></div><div class="detail-row"><span class="detail-term">phpMyAdmin</span><span class="detail-value">Not enabled</span><button class="action-link" type="button" data-action="Enable private phpMyAdmin">Enable privately</button></div></div></div></section>
+
+              <section class="panel"><header class="panel-head"><h2>Recent activity</h2><button class="action-link" type="button" data-action="Open activity">View all →</button></header><div class="panel-body"><ol class="activity-list"><li class="activity-row"><time>Today 03:10</time><div><strong>Backup completed</strong><p>Files and MariaDB dump · 1.2 GB</p></div><span class="badge badge-good">Done</span></li><li class="activity-row"><time>Yesterday</time><div><strong>TLS certificate renewed</strong><p>HTTP-01 validation completed</p></div><span class="badge badge-good">Done</span></li><li class="activity-row"><time>2 days ago</time><div><strong>Page cache cleared</strong><p>Manual action by admin</p></div><span class="badge badge-neutral">Audit</span></li></ol></div></section>
+            </div>
+
+            <aside class="stack">
+              <section class="panel"><header class="panel-head"><h2>Quick actions</h2></header><div class="panel-body quick-list"><button class="btn" type="button" data-action="Create backup">Create backup</button><button class="btn" type="button" data-action="Open File Manager">Open File Manager</button><button class="btn" type="button" data-action="Clear all site caches">Clear site caches</button><button class="btn" type="button" data-action="Open logs">View logs</button></div></section>
+              <section class="panel"><header class="panel-head"><h2>Managed services</h2></header><div class="panel-body service-list"><div class="service-row"><span>Nginx route</span><span class="badge badge-good">Running</span></div><div class="service-row"><span>PHP-FPM pool</span><span class="badge badge-good">Running</span></div><div class="service-row"><span>MariaDB</span><span class="badge badge-good">Connected</span></div><div class="service-row"><span>Redis</span><span class="badge badge-good">Connected</span></div></div></section>
+            </aside>
+          </div>
+
+          <details class="danger"><summary>Danger zone</summary><div class="danger-body"><p><strong>Disable or delete this site.</strong><br>Deletion creates a final backup and moves TomPanel-owned resources into seven-day quarantine before permanent purge.</p><div class="head-actions"><button class="btn" type="button" data-action="Disable site">Disable site</button><button class="btn btn-danger" type="button" data-delete-open>Delete site</button></div></div></details>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="delete-dialog" aria-labelledby="delete-title">
+    <div class="dialog-copy"><p class="eyebrow">Destructive action</p><h2 id="delete-title">Delete store.example.com?</h2><p>TomPanel will create a final backup, disable the site, and quarantine managed resources for seven days. External resources are not deleted.</p><label class="field"><span>Type store.example.com</span><input class="input mono" id="confirm-name" type="text" autocomplete="off"><small id="name-help">Required to confirm the target.</small></label><label class="field"><span>TOTP code</span><input class="input mono" id="confirm-totp" type="text" autocomplete="one-time-code" maxlength="6"><small>Step-up verification is required.</small></label></div>
+    <div class="dialog-actions"><button class="btn" type="button" data-delete-cancel>Cancel</button><button class="btn btn-danger" id="confirm-delete" type="button" disabled>Delete and quarantine</button></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite">Prototype only — no server action was performed.</div>
+
+  <script>
+    const toast = document.querySelector("#toast");
+    const deleteDialog = document.querySelector("#delete-dialog");
+    const confirmName = document.querySelector("#confirm-name");
+    const confirmTotp = document.querySelector("#confirm-totp");
+    const confirmDelete = document.querySelector("#confirm-delete");
+    let toastTimer;
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2100);
+    }
+    function validateDelete() {
+      confirmDelete.disabled = confirmName.value !== "store.example.com" || !/^\d{6}$/.test(confirmTotp.value);
+    }
+    document.addEventListener("click", (event) => {
+      const action = event.target.closest("[data-action]");
+      if (action) showToast(`Prototype only — “${action.dataset.action}” was not performed.`);
+      if (event.target.closest("[data-demo], a[href='#']")) { event.preventDefault(); showToast("Prototype only — navigation was not performed."); }
+      if (event.target.closest("[data-delete-open]")) { confirmName.value = ""; confirmTotp.value = ""; validateDelete(); deleteDialog.showModal(); confirmName.focus(); }
+      if (event.target.closest("[data-delete-cancel]")) deleteDialog.close();
+      if (event.target === confirmDelete) { deleteDialog.close(); showToast("Prototype only — the site was not deleted or quarantined."); }
+    });
+    confirmName.addEventListener("input", validateDelete);
+    confirmTotp.addEventListener("input", validateDelete);
+    deleteDialog.addEventListener("click", (event) => { if (event.target === deleteDialog) deleteDialog.close(); });
+  </script>
+</body>
+</html>

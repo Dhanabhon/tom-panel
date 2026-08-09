@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TomPanel Laravel Provisioning Prototype</title>
+  <!-- PROTOTYPE — Laravel branch of the approved step-by-step flow. No server or Git mutations. -->
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: oklch(98.5% 0.004 250);
+      --surface: oklch(100% 0 0);
+      --surface-2: oklch(96.5% 0.006 250);
+      --ink: oklch(24% 0.02 258);
+      --ink-2: oklch(39% 0.018 257);
+      --muted: oklch(57% 0.015 257);
+      --rule: oklch(89% 0.01 250);
+      --rule-strong: oklch(78% 0.015 250);
+      --accent: oklch(58% 0.20 256);
+      --accent-soft: oklch(94% 0.035 256);
+      --accent-ink: oklch(100% 0 0);
+      --good: oklch(55% 0.14 150);
+      --good-soft: oklch(95% 0.035 150);
+      --warn: oklch(66% 0.14 72);
+      --warn-soft: oklch(96% 0.045 72);
+      --bad: oklch(57% 0.19 25);
+      --bad-soft: oklch(95% 0.04 25);
+      --graphite: oklch(22% 0.016 260);
+      --font-display: "Space Grotesk", "Avenir Next", system-ui, sans-serif;
+      --font-body: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --space-1: .25rem;
+      --space-2: .5rem;
+      --space-3: .75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --radius-sm: .375rem;
+      --radius-md: .625rem;
+      --shadow: 0 .75rem 2.5rem oklch(20% 0.02 258 / .2);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 20rem; overflow-x: clip; }
+    body { min-height: 100dvh; background: var(--paper); color: var(--ink); font: 400 .9375rem/1.5 var(--font-body); }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: .1875rem solid var(--accent); outline-offset: .125rem; }
+    button:active { transform: translateY(.0625rem); }
+    h1, h2, h3, p { margin-block-start: 0; }
+    h1, h2, h3 { font-family: var(--font-display); font-style: normal; overflow-wrap: anywhere; }
+    h1 { margin-block-end: var(--space-2); font-size: clamp(1.65rem, 3vw, 2.5rem); line-height: 1.12; letter-spacing: -.03em; }
+    h2 { margin-block-end: var(--space-4); font-size: 1.15rem; line-height: 1.25; }
+    h3 { margin-block-end: var(--space-2); font-size: 1rem; }
+    a { color: inherit; }
+    .mono { font-family: var(--font-mono); font-size: .8125rem; }
+    .muted { color: var(--muted); }
+    .eyebrow { margin: 0 0 var(--space-2); color: var(--muted); font: 500 .7rem/1.2 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .icon { width: 1.125rem; height: 1.125rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+    .prototype-note { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: .8125rem; }
+    .prototype-note::before { width: .5rem; height: .5rem; border-radius: 50%; background: var(--warn); content: ""; }
+    [hidden] { display: none !important; }
+
+    .btn { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); padding: .625rem .875rem; font-weight: 650; white-space: nowrap; }
+    .btn:hover { border-color: var(--ink-2); background: var(--surface-2); }
+    .btn-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover { border-color: var(--accent); background: oklch(52% 0.20 256); }
+    .btn-danger { border-color: var(--bad); color: var(--bad); }
+    .btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+    .btn[disabled] { cursor: not-allowed; opacity: .48; }
+    .icon-btn { width: 2.75rem; padding-inline: 0; }
+    .badge { display: inline-flex; min-height: 1.5rem; align-items: center; gap: .375rem; border-radius: 999px; padding: .125rem .5rem; font-size: .75rem; font-weight: 650; white-space: nowrap; }
+    .badge::before { width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; content: ""; }
+    .badge-good { background: var(--good-soft); color: var(--good); }
+    .badge-warn { background: var(--warn-soft); color: oklch(50% 0.12 68); }
+    .badge-bad { background: var(--bad-soft); color: var(--bad); }
+    .badge-neutral { background: var(--surface-2); color: var(--ink-2); }
+
+    .side { position: fixed; inset: 0 auto 0 0; z-index: 3; display: flex; width: 15rem; flex-direction: column; border-inline-end: 1px solid var(--rule); background: var(--surface); padding: var(--space-5) var(--space-4); }
+    .brand { display: flex; min-height: 2.75rem; align-items: center; gap: var(--space-3); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
+    .brand-mark { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); font-family: var(--font-mono); font-size: .8125rem; }
+    .nav-label { margin: var(--space-6) var(--space-3) var(--space-2); color: var(--muted); font: 500 .6875rem/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
+    .nav-list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+    .nav-link { display: flex; min-height: 2.5rem; align-items: center; gap: var(--space-3); border-radius: var(--radius-sm); padding: .5rem .75rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .nav-link:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-link.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+    .side-bottom { display: grid; gap: var(--space-3); margin-top: auto; }
+    .server-mini { border-top: 1px solid var(--rule); padding-top: var(--space-4); }
+    .server-mini strong { display: block; margin-bottom: var(--space-1); }
+    .mobile-menu { display: none; }
+
+    .page { min-height: 100dvh; margin-inline-start: 15rem; }
+    .topbar { position: sticky; top: 0; z-index: 2; display: flex; min-height: 4.5rem; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); background: oklch(98.5% 0.004 250 / .94); padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8)); backdrop-filter: blur(.75rem); }
+    .crumb { color: var(--muted); font-size: .8125rem; }
+    .content { width: min(100%, 92rem); margin-inline: auto; padding: clamp(var(--space-6), 4vw, var(--space-10)); padding-bottom: 6rem; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-8); }
+    .page-head p { margin-bottom: 0; color: var(--ink-2); }
+    .panel { border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--rule); padding: var(--space-4) var(--space-5); }
+    .panel-head h2, .panel-head h3 { margin: 0; }
+    .panel-body { padding: var(--space-5); }
+
+    .wizard { display: grid; grid-template-columns: 13rem minmax(0, 1fr) minmax(17rem, .58fr); gap: var(--space-6); align-items: start; }
+    .step-list { position: sticky; top: 6rem; display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+    .step-item { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--space-3); align-items: center; border-radius: var(--radius-sm); padding: var(--space-2); color: var(--muted); }
+    .step-item strong { display: grid; width: 2rem; height: 2rem; place-items: center; border: 1px solid var(--rule); border-radius: 50%; background: var(--surface); font: 600 .75rem/1 var(--font-mono); }
+    .step-item.active { background: var(--accent-soft); color: var(--accent); }
+    .step-item.active strong { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+    .step-item.done { color: var(--ink-2); }
+    .step-item.done strong { border-color: var(--good); color: var(--good); }
+    .wizard-step { display: none; min-height: 32rem; }
+    .wizard-step.is-current { display: block; }
+    .step-copy { margin-bottom: var(--space-6); }
+    .step-copy p { max-width: 64ch; color: var(--ink-2); }
+    .step-mobile { display: none; }
+
+    .field { display: grid; gap: var(--space-2); }
+    .field + .field { margin-top: var(--space-5); }
+    .field > span:first-child, .field-label { font-weight: 650; }
+    .field small { color: var(--muted); }
+    .input, .select { width: 100%; min-height: 2.75rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); outline: .125rem solid transparent; outline-offset: .0625rem; background: var(--surface); color: var(--ink); padding: .625rem .75rem; }
+    .input:hover, .select:hover { background: var(--surface-2); }
+    .input:focus-visible, .select:focus-visible { outline-color: var(--accent); }
+    .input[readonly] { background: var(--surface-2); color: var(--ink-2); }
+    .two-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+    .two-fields .field + .field { margin-top: 0; }
+    .radio-row, .check-row { display: flex; align-items: flex-start; gap: var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: var(--space-3); }
+    .radio-row + .radio-row, .check-row + .check-row { margin-top: var(--space-2); }
+    .radio-row input, .check-row input { width: 1.125rem; height: 1.125rem; margin-top: .15rem; accent-color: var(--accent); }
+    .radio-row strong, .check-row strong { display: block; }
+    .radio-row small, .check-row small { display: block; color: var(--muted); }
+    .source-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+    .source-choice button { min-height: 8rem; border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); padding: var(--space-4); color: var(--ink); text-align: start; }
+    .source-choice button:hover { border-color: var(--rule-strong); background: var(--surface-2); }
+    .source-choice button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+    .source-choice strong, .source-choice span { display: block; }
+    .source-choice span { margin-top: var(--space-2); color: var(--muted); font-size: .8125rem; }
+    .notice { border-inline-start: .25rem solid var(--accent); background: var(--accent-soft); padding: var(--space-4); color: var(--ink-2); }
+    .notice + .notice { margin-top: var(--space-3); }
+    .notice strong { color: var(--ink); }
+    .env-row { display: grid; grid-template-columns: minmax(8rem, .7fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
+    .env-row + .env-row { margin-top: var(--space-3); }
+    .env-row .field + .field { margin-top: 0; }
+    .locked-list { display: grid; gap: var(--space-2); margin-bottom: var(--space-5); }
+    .locked-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--rule); padding: var(--space-2) 0; }
+
+    .summary { position: sticky; top: 6rem; border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--surface); }
+    .summary h2 { margin: 0; border-bottom: 1px solid var(--rule); padding: var(--space-4) var(--space-5); }
+    .summary-list { display: grid; grid-template-columns: minmax(6rem, .7fr) minmax(0, 1fr); margin: 0; padding: var(--space-4) var(--space-5); }
+    .summary-list dt, .summary-list dd { padding: .5rem 0; }
+    .summary-list dt:not(:first-child), .summary-list dt:not(:first-child) + dd { border-top: 1px solid var(--rule); }
+    .summary-list dt { color: var(--muted); }
+    .summary-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+    .resource-list { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-4) var(--space-5); list-style: none; }
+    .resource-list li { display: flex; align-items: center; gap: var(--space-2); }
+    .resource-list li::before { display: grid; width: 1.25rem; height: 1.25rem; flex: 0 0 auto; place-items: center; border-radius: 50%; background: var(--good-soft); color: var(--good); content: "✓"; font-size: .7rem; font-weight: 800; }
+    .action-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); border-top: 1px solid var(--rule); margin-top: var(--space-6); padding-top: var(--space-4); }
+    .action-bar-right { display: flex; gap: var(--space-2); }
+    .review-section + .review-section { border-top: 1px solid var(--rule); margin-top: var(--space-5); padding-top: var(--space-5); }
+    .review-section h3 { margin-bottom: var(--space-3); }
+    .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+    .review-item { border: 1px solid var(--rule); border-radius: var(--radius-sm); padding: var(--space-3); }
+    .review-item span { display: block; color: var(--muted); font-size: .75rem; }
+    .review-item strong { overflow-wrap: anywhere; }
+
+    .progress-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(18rem, .55fr); gap: var(--space-6); align-items: start; }
+    .job-list { margin: 0; padding: 0; list-style: none; }
+    .job-row { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding: var(--space-4) var(--space-5); }
+    .job-row + .job-row { border-top: 1px solid var(--rule); }
+    .job-icon { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border: 1px solid var(--rule); border-radius: 50%; color: var(--muted); font: 600 .7rem/1 var(--font-mono); }
+    .job-row.running .job-icon { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+    .job-row.done .job-icon { border-color: var(--good); background: var(--good-soft); color: var(--good); }
+    .job-row.failed .job-icon { border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+    .job-row p { margin: .15rem 0 0; color: var(--muted); font-size: .8125rem; }
+    .recovery { margin-top: var(--space-5); border: 1px solid var(--bad); border-radius: var(--radius-md); background: var(--bad-soft); padding: var(--space-5); }
+    .recovery-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    .progress-actions { display: grid; gap: var(--space-2); }
+    .progress-actions .btn { width: 100%; }
+    .log-box { min-height: 13rem; overflow: auto; border-radius: var(--radius-md); background: var(--graphite); color: oklch(84% 0.03 256); padding: var(--space-4); font: .75rem/1.7 var(--font-mono); white-space: pre-wrap; }
+    dialog { width: min(31rem, calc(100% - 2rem)); border: 1px solid var(--rule-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); padding: 0; box-shadow: var(--shadow); }
+    dialog::backdrop { background: oklch(18% 0.02 258 / .5); }
+    .dialog-copy { padding: var(--space-5); }
+    .dialog-copy p:last-child { margin-bottom: 0; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); border-top: 1px solid var(--rule); padding: var(--space-4) var(--space-5); }
+    .toast { position: fixed; inset: var(--space-4) var(--space-4) auto auto; z-index: 30; max-width: 24rem; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--graphite); color: var(--surface); padding: var(--space-3) var(--space-4); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transform: translateY(-.5rem); transition: opacity .15s ease-out, transform .15s ease-out; }
+    .toast.show { opacity: 1; transform: none; }
+
+    @media (max-width: 75rem) {
+      .wizard { grid-template-columns: 11rem minmax(0, 1fr); }
+      .wizard > .summary { grid-column: 2; position: static; }
+    }
+    @media (max-width: 60rem) {
+      .side { position: sticky; top: 0; width: 100%; height: auto; flex-direction: row; align-items: center; border-inline-end: 0; border-bottom: 1px solid var(--rule); padding: var(--space-2) var(--space-4); }
+      .side > .nav-label, .side > .nav-list, .side-bottom { display: none; }
+      .side .brand { margin-inline-end: auto; }
+      .mobile-menu { display: inline-flex; }
+      .page { margin-inline-start: 0; }
+      .topbar { position: static; }
+      .wizard, .progress-layout { grid-template-columns: minmax(0, 1fr); }
+      .step-list { position: static; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+      .step-item { grid-template-columns: 1fr; justify-items: center; padding: var(--space-1); text-align: center; }
+      .step-item span { display: none; }
+      .wizard > .summary { grid-column: auto; }
+    }
+    @media (max-width: 40rem) {
+      .topbar { min-height: 4rem; padding-inline: var(--space-4); }
+      .topbar .prototype-note { display: none; }
+      .content { padding-inline: var(--space-4); }
+      .page-head { flex-direction: column; align-items: stretch; }
+      .step-list { display: none; }
+      .step-mobile { display: block; margin-bottom: var(--space-4); color: var(--accent); font: 600 .75rem/1.4 var(--font-mono); }
+      .wizard-step { min-height: 0; }
+      .two-fields, .source-choice, .review-grid, .env-row { grid-template-columns: minmax(0, 1fr); }
+      .action-bar { align-items: stretch; flex-direction: column; }
+      .action-bar-right { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .action-bar .btn { width: 100%; }
+      .summary-list { grid-template-columns: minmax(0, 1fr); }
+      .summary-list dt:not(:first-child) + dd { border-top: 0; }
+      .job-row { grid-template-columns: 2rem minmax(0, 1fr); }
+      .job-row .badge { grid-column: 2; justify-self: start; }
+      .dialog-actions { flex-direction: column-reverse; }
+      .dialog-actions .btn { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+    <symbol id="i-site" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    <symbol id="i-backup" viewBox="0 0 24 24"><path d="M5 8a8 8 0 1 1-1 7M5 8V3M5 8h5"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-service" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A7 7 0 0 0 15 6L14.6 3h-4L10 6a7 7 0 0 0-1.5 1L6 6 4 9.4 6.1 11a7 7 0 0 0 0 2L4 14.6 6 18l2.5-1A7 7 0 0 0 10 18l.6 3h4l.5-3a7 7 0 0 0 1.4-1l2.5 1 2-3.4-2.1-1.6a7 7 0 0 0 .1-1Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  </svg>
+
+  <aside class="side">
+    <div class="brand"><span class="brand-mark">TP</span> TomPanel</div>
+    <p class="nav-label">Manage</p>
+    <ul class="nav-list"><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-grid"/></svg>Dashboard</a></li><li><a class="nav-link active" href="#"><svg class="icon"><use href="#i-site"/></svg>Sites</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-site"/></svg>Domains</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-db"/></svg>Databases</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-backup"/></svg>Backups</a></li><li><a class="nav-link" href="#"><svg class="icon"><use href="#i-service"/></svg>Services</a></li></ul>
+    <button class="btn btn-quiet icon-btn mobile-menu" type="button" aria-label="Open navigation" data-demo><svg class="icon"><use href="#i-menu"/></svg></button>
+    <div class="side-bottom"><a class="nav-link" href="#"><svg class="icon"><use href="#i-settings"/></svg>Settings</a><div class="server-mini"><strong>tom-vps-01</strong><span class="badge badge-good">All services online</span></div></div>
+  </aside>
+
+  <div class="page">
+    <header class="topbar"><div><div class="crumb">Sites / Create site / Laravel</div><strong class="mono">tom-vps-01</strong></div><span class="prototype-note">Prototype · no Git or server actions</span></header>
+    <main class="content">
+      <section id="wizard-view">
+        <div class="page-head"><div><p class="eyebrow">Laravel recipe</p><h1>Create a Laravel site</h1><p>Build a tested deployment plan. Custom shell hooks are not accepted in the MVP.</p></div><button class="btn btn-quiet" type="button" data-demo>Save draft</button></div>
+        <div class="wizard">
+          <ol class="step-list">
+            <li class="step-item active" data-step-indicator="1"><strong>1</strong><span>Source</span></li>
+            <li class="step-item" data-step-indicator="2"><strong>2</strong><span>Address</span></li>
+            <li class="step-item" data-step-indicator="3"><strong>3</strong><span>Runtime</span></li>
+            <li class="step-item" data-step-indicator="4"><strong>4</strong><span>Environment</span></li>
+            <li class="step-item" data-step-indicator="5"><strong>5</strong><span>Deploy</span></li>
+            <li class="step-item" data-step-indicator="6"><strong>6</strong><span>DNS &amp; SSL</span></li>
+            <li class="step-item" data-step-indicator="7"><strong>7</strong><span>Review</span></li>
+          </ol>
+
+          <section class="panel">
+            <div class="panel-body">
+              <p class="step-mobile" data-step-mobile>Step 1 of 7 · Source</p>
+              <div class="wizard-step is-current" data-step="1">
+                <div class="step-copy"><h2>Choose the application source</h2><p>Fresh installs use the Laravel major pinned and tested by this TomPanel release. Git deployments create immutable release directories.</p></div>
+                <div class="source-choice"><button type="button" data-source="fresh" aria-pressed="false"><strong>Fresh Laravel</strong><span>Create a clean supported project with Composer.</span></button><button type="button" data-source="git" aria-pressed="true"><strong>Git repository</strong><span>Deploy a branch through the fixed production pipeline.</span></button></div>
+                <div data-git-only>
+                  <label class="field"><span>Repository URL</span><input class="input mono" data-bind="repository" type="url" value="git@github.com:tom/example-app.git"><small>HTTPS and SSH repositories are supported.</small></label>
+                  <div class="two-fields"><label class="field"><span>Branch</span><input class="input mono" data-bind="branch" type="text" value="main"></label><label class="field"><span>Repository access</span><select class="select" data-bind="repoAccess"><option value="private" selected>Private</option><option value="public">Public</option></select></label></div>
+                  <div class="notice" data-private-repo><strong>A unique read-only deploy key will be generated.</strong><br>Add its public key to the repository before provisioning. The private key never appears in logs.</div>
+                </div>
+                <div class="notice" data-fresh-only hidden><strong>Laravel version is release-pinned.</strong><br>TomPanel does not dynamically select an untested newest major.</div>
+              </div>
+
+              <div class="wizard-step" data-step="2">
+                <div class="step-copy"><h2>Choose the address</h2><p>Public mode validates DNS and SSL before activation. Private mode keeps the site behind an SSH tunnel.</p></div>
+                <label class="field"><span>Primary domain</span><input class="input" data-bind="domain" type="text" value="app.example.com"><small>Use a full hostname without protocol or path.</small></label>
+                <div class="field"><span class="field-label">Exposure</span><label class="radio-row"><input data-bind="exposure" type="radio" value="public" checked><span><strong>Public HTTPS</strong><small>Available after DNS and certificate checks.</small></span></label><label class="radio-row"><input data-bind="exposure" type="radio" value="private"><span><strong>Private through SSH tunnel</strong><small>No public DNS, firewall rule, or certificate.</small></span></label></div>
+              </div>
+
+              <div class="wizard-step" data-step="3">
+                <div class="step-copy"><h2>Configure runtime and data</h2><p>Production-safe settings are enforced. APP_DEBUG stays off and the application key is generated securely.</p></div>
+                <div class="two-fields"><label class="field"><span>PHP version</span><select class="select" data-bind="php"><option>8.3</option><option selected>8.4</option><option>8.5</option></select><small>PHP 8.4 is recommended.</small></label><label class="field"><span>Health check path</span><input class="input mono" data-bind="healthPath" type="text" value="/up"><small>Must return HTTP 2xx before activation.</small></label></div>
+                <label class="check-row"><input data-bind="database" type="checkbox" checked><span><strong>Create MariaDB database</strong><small>Creates a site-scoped database, user, and grants.</small></span></label>
+                <label class="check-row"><input data-bind="redis" type="checkbox" checked><span><strong>Create Redis credentials</strong><small>Site-scoped ACL for cache and queues.</small></span></label>
+                <label class="check-row"><input data-bind="sftp" type="checkbox" checked><span><strong>Create SFTP account</strong><small>Access to shared storage and active release without a shell.</small></span></label>
+              </div>
+
+              <div class="wizard-step" data-step="4">
+                <div class="step-copy"><h2>Prepare environment variables</h2><p>Secrets are encrypted and redacted from job logs. Shared `.env` data persists outside release directories.</p></div>
+                <div class="locked-list"><div class="locked-item"><span class="mono">APP_ENV</span><strong>production</strong></div><div class="locked-item"><span class="mono">APP_DEBUG</span><strong>false</strong></div><div class="locked-item"><span class="mono">APP_KEY</span><span class="badge badge-neutral">Generated securely</span></div><div class="locked-item"><span class="mono">DB_*</span><span class="badge badge-neutral">Managed by TomPanel</span></div></div>
+                <p class="field-label">Custom variables</p>
+                <div class="env-row"><label class="field"><span>Key</span><input class="input mono" data-bind="envKey" type="text" value="MAIL_MAILER"></label><label class="field"><span>Value</span><input class="input mono" data-bind="envValue" type="text" value="smtp"></label><label class="check-row"><input data-bind="envSecret" type="checkbox"><span><strong>Secret</strong><small>Encrypt value</small></span></label></div>
+                <div class="notice"><strong>One custom row represents the interaction only.</strong><br>The production UI will support adding, validating, masking, and removing multiple variables.</div>
+              </div>
+
+              <div class="wizard-step" data-step="5">
+                <div class="step-copy"><h2>Choose the deployment pipeline</h2><p>The pipeline is fixed and reviewable. TomPanel accepts no arbitrary commands or custom shell hooks in the MVP.</p></div>
+                <div class="locked-list"><div class="locked-item"><span>Composer install</span><strong class="mono">--no-dev --optimize-autoloader</strong></div><div class="locked-item"><span>Activation</span><strong>Atomic release symlink</strong></div><div class="locked-item"><span>Failure behavior</span><strong>Keep current release active</strong></div></div>
+                <label class="check-row"><input data-bind="nodeBuild" type="checkbox" checked><span><strong>Run Node.js build</strong><small>Requires committed package-lock.json; runs npm ci and npm run build.</small></span></label>
+                <label class="check-row"><input data-bind="migrations" type="checkbox"><span><strong>Run confirmed database migrations</strong><small>Shows a separate confirmation before each deployment.</small></span></label>
+                <label class="check-row"><input data-bind="queue" type="checkbox" checked><span><strong>Run a queue worker</strong><small>Managed systemd service under the site user.</small></span></label>
+                <label class="check-row"><input data-bind="scheduler" type="checkbox" checked><span><strong>Run the Laravel scheduler</strong><small>Managed systemd timer under the site user.</small></span></label>
+              </div>
+
+              <div class="wizard-step" data-step="6">
+                <div class="step-copy"><h2>Connect DNS and SSL</h2><p>TomPanel checks external readiness before switching traffic to the new release.</p></div>
+                <div data-public-only><div class="field"><span class="field-label">DNS management</span><label class="radio-row"><input data-bind="dns" type="radio" value="manual" checked><span><strong>Show manual DNS instructions</strong><small>Wait until the required record resolves.</small></span></label><label class="radio-row"><input data-bind="dns" type="radio" value="cloudflare"><span><strong>Manage through Cloudflare</strong><small>Create only the TomPanel-owned record.</small></span></label></div><div class="field"><span class="field-label">Certificate</span><label class="radio-row"><input data-bind="ssl" type="radio" value="http-01" checked><span><strong>Automatic HTTP-01 certificate</strong><small>Recommended for normal hostnames.</small></span></label><label class="radio-row"><input data-bind="ssl" type="radio" value="wildcard"><span><strong>Wildcard through Cloudflare</strong><small>Requires Cloudflare DNS and DNS-01.</small></span></label></div></div>
+                <div class="notice" data-private-only hidden><strong>No public DNS or SSL resources.</strong><br>The application remains reachable only through an SSH tunnel.</div>
+              </div>
+
+              <div class="wizard-step" data-step="7">
+                <div class="step-copy"><h2>Review the deployment plan</h2><p>The staged release must pass the configured health check before TomPanel changes the active symlink.</p></div>
+                <section class="review-section"><h3>Source</h3><div class="review-grid"><div class="review-item"><span>Mode</span><strong data-state="source">git</strong></div><div class="review-item"><span>Repository</span><strong data-state="repository">git@github.com:tom/example-app.git</strong></div><div class="review-item"><span>Branch</span><strong data-state="branch">main</strong></div><div class="review-item"><span>Deploy key</span><strong data-state="repoAccess">private</strong></div></div></section>
+                <section class="review-section"><h3>Runtime and deployment</h3><div class="review-grid"><div class="review-item"><span>Domain</span><strong data-state="domain">app.example.com</strong></div><div class="review-item"><span>PHP</span><strong data-state="php">8.4</strong></div><div class="review-item"><span>Health check</span><strong data-state="healthPath">/up</strong></div><div class="review-item"><span>Migrations</span><strong data-state="migrations">false</strong></div></div></section>
+                <section class="review-section"><h3><span data-resource-count>10</span> managed resources</h3><ul class="resource-list" data-resources><li>Preparing resource plan…</li></ul></section>
+              </div>
+            </div>
+            <footer class="panel-body action-bar"><button class="btn btn-quiet" type="button" data-demo>Cancel</button><div class="action-bar-right"><button class="btn" type="button" data-back disabled>Back</button><button class="btn btn-primary" type="button" data-next>Continue</button></div></footer>
+          </section>
+
+          <aside class="summary"><h2>Current configuration</h2><dl class="summary-list"><dt>Recipe</dt><dd>Laravel</dd><dt>Source</dt><dd data-state="source">git</dd><dt>Domain</dt><dd data-state="domain">app.example.com</dd><dt>PHP</dt><dd data-state="php">8.4</dd><dt>Resources</dt><dd><span data-resource-count>10</span> managed</dd></dl><ul class="resource-list" data-resources><li>Preparing resource plan…</li></ul></aside>
+        </div>
+      </section>
+
+      <section id="progress-view" hidden>
+        <div class="page-head"><div><p class="eyebrow">Deployment job · Prototype</p><h1>Deploying <span data-state="domain">app.example.com</span></h1><p>The active release changes only after the staged release passes its health check.</p></div><span class="badge badge-neutral" id="overall-status">Ready to simulate</span></div>
+        <div class="progress-layout">
+          <section class="panel"><header class="panel-head"><h2>Deployment steps</h2><span class="mono" id="job-progress">0 / 0</span></header><ol class="job-list" id="job-list"><li class="job-row"><span class="job-icon">1</span><div><strong>Preparing simulation…</strong><p>No Git or server actions are executed.</p></div><span class="badge badge-neutral">Pending</span></li></ol><div class="panel-body recovery" id="recovery" hidden><h3>Staged release failed</h3><p>The active release remains unchanged. The failed release is retained for diagnosis until cleanup.</p><div class="recovery-actions"><button class="btn btn-primary" type="button" data-retry>Retry failed step</button><button class="btn btn-danger" type="button" data-cleanup>Remove failed release</button></div></div></section>
+          <aside class="progress-actions"><button class="btn btn-primary" type="button" data-success-demo>Run success demo</button><button class="btn" type="button" data-failure-demo>Show health-check failure</button><button class="btn btn-quiet" type="button" data-reset>Back to review</button><div class="log-box" id="log-box">[prototype] Ready. Choose a demo state.</div></aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="migration-dialog" aria-labelledby="migration-title">
+    <div class="dialog-copy"><p class="eyebrow">Deployment confirmation</p><h2 id="migration-title">Run database migrations?</h2><p>The migration will run with <span class="mono">--force</span> before activation. A code rollback cannot automatically reverse a destructive database migration.</p></div>
+    <div class="dialog-actions"><button class="btn" type="button" data-migration-cancel>Go back</button><button class="btn btn-primary" type="button" data-migration-confirm>Run migrations and deploy</button></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite">Prototype only — no server action was performed.</div>
+
+  <script>
+    const state = {
+      source: "git", repository: "git@github.com:tom/example-app.git", branch: "main", repoAccess: "private",
+      domain: "app.example.com", exposure: "public", php: "8.4", healthPath: "/up", database: true, redis: true, sftp: true,
+      envKey: "MAIL_MAILER", envValue: "smtp", envSecret: false, nodeBuild: true, migrations: false, queue: true, scheduler: true,
+      dns: "manual", ssl: "http-01"
+    };
+    const stepNames = ["Source", "Address", "Runtime", "Environment", "Deploy", "DNS & SSL", "Review"];
+    let currentStep = 1;
+    let timers = [];
+    let toastTimer;
+    const toast = document.querySelector("#toast");
+    const wizardView = document.querySelector("#wizard-view");
+    const progressView = document.querySelector("#progress-view");
+    const jobList = document.querySelector("#job-list");
+    const logBox = document.querySelector("#log-box");
+    const recovery = document.querySelector("#recovery");
+    const overallStatus = document.querySelector("#overall-status");
+    const migrationDialog = document.querySelector("#migration-dialog");
+
+    function resources() {
+      const items = ["Linux site user and release directories", "Nginx configuration", `PHP ${state.php} FPM pool`];
+      if (state.database) items.push("MariaDB database and user");
+      if (state.redis) items.push("Redis credentials");
+      if (state.sftp) items.push("SFTP account");
+      if (state.source === "git" && state.repoAccess === "private") items.push("Repository deploy key");
+      if (state.queue) items.push("Queue worker service");
+      if (state.scheduler) items.push("Scheduler timer");
+      if (state.exposure === "public") {
+        if (state.dns === "cloudflare") items.push("Cloudflare DNS record");
+        items.push(state.ssl === "wildcard" ? "Wildcard TLS certificate" : "TLS certificate");
+      }
+      return items;
+    }
+
+    function jobs() {
+      const list = [
+        ["Reserve site identity", "Check hostname, port, and managed-resource collisions."],
+        ["Create site user and shared paths", "Prepare releases, shared storage, and persistent environment data."],
+        [state.source === "git" ? "Clone repository" : "Create fresh Laravel project", state.source === "git" ? `Fetch ${state.branch} into a new release directory.` : "Install the release-pinned Laravel major."],
+        ["Install Composer dependencies", "Run the fixed production Composer command without dev dependencies."],
+      ];
+      if (state.nodeBuild) list.push(["Build frontend assets", "Run npm ci and npm run build from the committed lockfile."]);
+      if (state.migrations) list.push(["Run confirmed migrations", "Apply migrations only after explicit deployment confirmation."]);
+      list.push(["Optimize Laravel", "Cache production configuration, routes, and views."]);
+      list.push(["Configure services", "Stage PHP-FPM, queue worker, scheduler, Nginx, and shared paths."]);
+      if (state.exposure === "public") list.push([state.dns === "cloudflare" ? "Create Cloudflare DNS record" : "Verify DNS", "Confirm the public hostname resolves correctly."]);
+      if (state.exposure === "public") list.push(["Issue TLS certificate", "Complete ACME validation and stage HTTPS."]);
+      list.push(["Run staged health check", `Require HTTP 2xx from ${state.healthPath} before activation.`]);
+      list.push(["Activate release", "Atomically switch the current symlink and restart managed workers."]);
+      return list;
+    }
+
+    function renderState() {
+      if (state.dns !== "cloudflare" && state.ssl === "wildcard") state.ssl = "http-01";
+      document.querySelectorAll("[data-state]").forEach((node) => {
+        const key = node.dataset.state;
+        if (state.source === "fresh" && ["repository", "branch", "repoAccess"].includes(key)) node.textContent = "Not applicable";
+        else if (state.exposure === "private" && ["dns", "ssl"].includes(key)) node.textContent = "Not applicable";
+        else node.textContent = String(state[key]);
+      });
+      document.querySelectorAll("[data-resource-count]").forEach((node) => node.textContent = resources().length);
+      document.querySelectorAll("[data-resources]").forEach((list) => {
+        list.replaceChildren(...resources().map((name) => {
+          const item = document.createElement("li");
+          item.textContent = name;
+          return item;
+        }));
+      });
+      document.querySelectorAll("[data-bind]").forEach((control) => {
+        const key = control.dataset.bind;
+        if (control.type === "checkbox") control.checked = Boolean(state[key]);
+        else if (control.type === "radio") control.checked = control.value === state[key];
+        else control.value = state[key];
+      });
+      document.querySelectorAll("[data-source]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.source === state.source)));
+      document.querySelectorAll("[data-git-only]").forEach((node) => node.hidden = state.source !== "git");
+      document.querySelectorAll("[data-fresh-only]").forEach((node) => node.hidden = state.source !== "fresh");
+      document.querySelectorAll("[data-private-repo]").forEach((node) => node.hidden = state.source !== "git" || state.repoAccess !== "private");
+      const publicMode = state.exposure === "public";
+      document.querySelectorAll("[data-public-only]").forEach((node) => node.hidden = !publicMode);
+      document.querySelectorAll("[data-private-only]").forEach((node) => node.hidden = publicMode);
+      document.querySelectorAll('input[value="wildcard"]').forEach((control) => control.disabled = state.dns !== "cloudflare");
+    }
+
+    function renderStep(step) {
+      currentStep = Math.min(7, Math.max(1, step));
+      document.querySelectorAll("[data-step]").forEach((node) => node.classList.toggle("is-current", Number(node.dataset.step) === currentStep));
+      document.querySelectorAll("[data-step-indicator]").forEach((node) => {
+        const number = Number(node.dataset.stepIndicator);
+        node.classList.toggle("active", number === currentStep);
+        node.classList.toggle("done", number < currentStep);
+        node.querySelector("strong").textContent = number < currentStep ? "✓" : number;
+      });
+      document.querySelector("[data-step-mobile]").textContent = `Step ${currentStep} of 7 · ${stepNames[currentStep - 1]}`;
+      document.querySelector("[data-back]").disabled = currentStep === 1;
+      document.querySelector("[data-next]").textContent = currentStep === 7 ? "Start deployment" : "Continue";
+      renderState();
+    }
+
+    document.addEventListener("change", (event) => {
+      const control = event.target.closest("[data-bind]");
+      if (!control) return;
+      state[control.dataset.bind] = control.type === "checkbox" ? control.checked : control.value;
+      renderState();
+    });
+    document.addEventListener("input", (event) => {
+      const control = event.target.closest("input[data-bind]:not([type=checkbox]):not([type=radio])");
+      if (!control) return;
+      state[control.dataset.bind] = control.value;
+      renderState();
+    });
+    document.addEventListener("click", (event) => {
+      const sourceButton = event.target.closest("[data-source]");
+      if (sourceButton) { state.source = sourceButton.dataset.source; renderState(); }
+      if (event.target.closest("[data-demo], a[href='#']")) { event.preventDefault(); showToast("Prototype only — navigation was not performed."); }
+      if (event.target.closest("[data-success-demo]")) { resetJobs(); runSuccess(); }
+      if (event.target.closest("[data-failure-demo]")) showFailure();
+      if (event.target.closest("[data-retry]")) runSuccess(Math.max(0, jobs().length - 2));
+      if (event.target.closest("[data-cleanup]")) { resetJobs(); overallStatus.textContent = "Failed release removed"; logBox.textContent = "[cleanup] Failed release removed. Active release was never changed."; recovery.hidden = true; }
+      if (event.target.closest("[data-reset]")) showWizard();
+      if (event.target.closest("[data-migration-cancel]")) migrationDialog.close();
+      if (event.target.closest("[data-migration-confirm]")) { migrationDialog.close(); showProgress(); }
+    });
+    document.querySelector("[data-back]").addEventListener("click", () => renderStep(currentStep - 1));
+    document.querySelector("[data-next]").addEventListener("click", () => {
+      if (currentStep !== 7) return renderStep(currentStep + 1);
+      if (state.migrations) migrationDialog.showModal(); else showProgress();
+    });
+    migrationDialog.addEventListener("click", (event) => { if (event.target === migrationDialog) migrationDialog.close(); });
+
+    function showProgress() { wizardView.hidden = true; progressView.hidden = false; resetJobs(); scrollTo({ top: 0, behavior: "smooth" }); }
+    function showWizard() { clearTimers(); progressView.hidden = true; wizardView.hidden = false; renderStep(7); scrollTo({ top: 0, behavior: "smooth" }); }
+    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+    function resetJobs() {
+      clearTimers();
+      recovery.hidden = true;
+      overallStatus.className = "badge badge-neutral";
+      overallStatus.textContent = "Ready to simulate";
+      document.querySelector("#job-progress").textContent = `0 / ${jobs().length}`;
+      jobList.replaceChildren(...jobs().map(([name, detail], index) => {
+        const item = document.createElement("li");
+        item.className = "job-row";
+        const icon = document.createElement("span");
+        icon.className = "job-icon";
+        icon.textContent = index + 1;
+        const copy = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = name;
+        const description = document.createElement("p");
+        description.textContent = detail;
+        copy.append(title, description);
+        const badge = document.createElement("span");
+        badge.className = "badge badge-neutral";
+        badge.textContent = "Pending";
+        item.append(icon, copy, badge);
+        return item;
+      }));
+      logBox.textContent = "[prototype] Ready. Choose a demo state.";
+    }
+    function setJob(index, status) {
+      const row = jobList.children[index];
+      if (!row) return;
+      row.className = `job-row ${status}`;
+      const icon = row.querySelector(".job-icon");
+      const badge = row.querySelector(".badge");
+      if (status === "done") { icon.textContent = "✓"; badge.className = "badge badge-good"; badge.textContent = "Done"; }
+      if (status === "running") { icon.textContent = "→"; badge.className = "badge badge-warn"; badge.textContent = "Running"; }
+      if (status === "failed") { icon.textContent = "!"; badge.className = "badge badge-bad"; badge.textContent = "Failed"; }
+    }
+    function runSuccess(start = 0) {
+      clearTimers();
+      recovery.hidden = true;
+      overallStatus.className = "badge badge-warn";
+      overallStatus.textContent = "Deploying";
+      const allJobs = jobs();
+      for (let i = 0; i < start; i++) setJob(i, "done");
+      allJobs.slice(start).forEach((job, offset) => {
+        const index = start + offset;
+        timers.push(setTimeout(() => {
+          if (index > 0) setJob(index - 1, "done");
+          setJob(index, "running");
+          document.querySelector("#job-progress").textContent = `${index} / ${allJobs.length}`;
+          logBox.textContent += `\n[step ${index + 1}] ${job[0]}`;
+        }, offset * 480));
+      });
+      timers.push(setTimeout(() => {
+        setJob(allJobs.length - 1, "done");
+        document.querySelector("#job-progress").textContent = `${allJobs.length} / ${allJobs.length}`;
+        overallStatus.className = "badge badge-good";
+        overallStatus.textContent = "Release active";
+        logBox.textContent += "\n[complete] Health check passed. Current symlink switched atomically.";
+      }, (allJobs.length - start) * 480));
+    }
+    function showFailure() {
+      resetJobs();
+      const failedIndex = Math.max(0, jobs().length - 2);
+      for (let i = 0; i < failedIndex; i++) setJob(i, "done");
+      setJob(failedIndex, "failed");
+      document.querySelector("#job-progress").textContent = `${failedIndex} / ${jobs().length}`;
+      overallStatus.className = "badge badge-bad";
+      overallStatus.textContent = "Health check failed";
+      recovery.hidden = false;
+      logBox.textContent = `[error DEPLOY_HEALTH_01] ${state.healthPath} did not return HTTP 2xx.\nActive release unchanged. Secrets and provider output are redacted.`;
+    }
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2000);
+    }
+    renderStep(1);
+  </script>
+</body>
+</html>
