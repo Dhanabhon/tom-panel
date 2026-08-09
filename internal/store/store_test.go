@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/fstest"
+
+	canonical "github.com/Dhanabhon/tom-panel/migrations"
 )
 
 func openTestStore(t *testing.T) *Store {
@@ -65,11 +68,9 @@ func TestTxRollsBackFailedWork(t *testing.T) {
 
 func TestMigrationsAreAtomic(t *testing.T) {
 	s := openTestStore(t)
-	err := migrate(context.Background(), s.db, []migration{{
-		version: 2,
-		name:    "broken",
-		sql:     "CREATE TABLE must_rollback (id INTEGER); this is not SQL;",
-	}})
+	err := migrate(context.Background(), s.db, fstest.MapFS{
+		"0002_broken.sql": {Data: []byte("CREATE TABLE must_rollback (id INTEGER); this is not SQL;")},
+	})
 	if err == nil {
 		t.Fatal("broken migration succeeded")
 	}
@@ -88,6 +89,34 @@ func TestMigrationsAreAtomic(t *testing.T) {
 	}
 	if tables != 0 {
 		t.Fatal("partial migration survived rollback")
+	}
+}
+
+func TestRuntimeMigrationsConsumeCanonicalFS(t *testing.T) {
+	db, err := sql.Open("sqlite", sqliteDSN(filepath.Join(t.TempDir(), "canonical.db")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := migrate(context.Background(), db, canonical.FS); err != nil {
+		t.Fatal(err)
+	}
+	var name string
+	if err := db.QueryRow("SELECT name FROM schema_migrations WHERE version = 1").Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "0001_core.sql" {
+		t.Fatalf("applied migration = %q, want 0001_core.sql", name)
+	}
+	var exists int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'admins'").Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	if exists != 1 {
+		t.Fatal("canonical migration did not create admins")
+	}
+	if _, err := canonical.FS.ReadFile(name); err != nil {
+		t.Fatalf("applied migration is not in canonical FS: %v", err)
 	}
 }
 
@@ -115,6 +144,52 @@ func TestOpenConfiguresSQLite(t *testing.T) {
 		}
 		if exists != 1 {
 			t.Errorf("table %s does not exist", table)
+		}
+	}
+}
+
+func TestOpenConfiguresEveryReplacementConnection(t *testing.T) {
+	s := openTestStore(t)
+	s.db.SetMaxIdleConns(0)
+	before := s.db.Stats().MaxIdleClosed
+	conn, err := s.db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=DELETE",
+		"PRAGMA foreign_keys=OFF",
+		"PRAGMA busy_timeout=0",
+		"PRAGMA synchronous=NORMAL",
+	} {
+		if _, err := conn.ExecContext(context.Background(), pragma); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if s.db.Stats().MaxIdleClosed <= before {
+		t.Fatal("database/sql did not close the original physical connection")
+	}
+
+	replacement, err := s.db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer replacement.Close()
+	for pragma, want := range map[string]string{
+		"journal_mode": "wal",
+		"foreign_keys": "1",
+		"busy_timeout": "5000",
+		"synchronous":  "2",
+	} {
+		var got string
+		if err := replacement.QueryRowContext(context.Background(), "PRAGMA "+pragma).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("replacement connection PRAGMA %s = %s, want %s", pragma, got, want)
 		}
 	}
 }

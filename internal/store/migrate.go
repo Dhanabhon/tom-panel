@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
 )
 
 type migration struct {
@@ -12,9 +15,11 @@ type migration struct {
 	sql     string
 }
 
-var coreMigrations = []migration{{version: 1, name: "0001_core.sql", sql: coreSchema}}
-
-func migrate(ctx context.Context, db *sql.DB, migrations []migration) error {
+func migrate(ctx context.Context, db *sql.DB, source fs.FS) error {
+	migrations, err := loadMigrations(source)
+	if err != nil {
+		return err
+	}
 	if _, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version INTEGER PRIMARY KEY,
@@ -40,6 +45,35 @@ func migrate(ctx context.Context, db *sql.DB, migrations []migration) error {
 	return nil
 }
 
+func loadMigrations(source fs.FS) ([]migration, error) {
+	names, err := fs.Glob(source, "*.sql")
+	if err != nil {
+		return nil, fmt.Errorf("list migrations: %w", err)
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("no migrations found")
+	}
+	migrations := make([]migration, 0, len(names))
+	seen := make(map[int]bool, len(names))
+	for _, name := range names {
+		prefix, _, ok := strings.Cut(name, "_")
+		version, err := strconv.Atoi(prefix)
+		if !ok || err != nil || version < 1 {
+			return nil, fmt.Errorf("invalid migration name %q", name)
+		}
+		if seen[version] {
+			return nil, fmt.Errorf("duplicate migration version %d", version)
+		}
+		contents, err := fs.ReadFile(source, name)
+		if err != nil {
+			return nil, fmt.Errorf("read migration %q: %w", name, err)
+		}
+		seen[version] = true
+		migrations = append(migrations, migration{version: version, name: name, sql: string(contents)})
+	}
+	return migrations, nil
+}
+
 func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -57,89 +91,3 @@ func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 	}
 	return nil
 }
-
-const coreSchema = `
-CREATE TABLE admins (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    username TEXT NOT NULL UNIQUE,
-    password_hash BLOB NOT NULL,
-    totp_secret BLOB,
-    recovery_codes BLOB,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
-CREATE TABLE sessions (
-    id_hash BLOB PRIMARY KEY,
-    admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
-    csrf_hash BLOB NOT NULL,
-    created_at INTEGER NOT NULL,
-    last_seen_at INTEGER NOT NULL,
-    idle_expires_at INTEGER NOT NULL,
-    absolute_expires_at INTEGER NOT NULL,
-    step_up_until INTEGER
-);
-
-CREATE INDEX sessions_admin_id ON sessions(admin_id);
-CREATE INDEX sessions_expiry ON sessions(absolute_expires_at);
-
-CREATE TABLE jobs (
-    id TEXT PRIMARY KEY,
-    kind TEXT NOT NULL,
-    input_json BLOB NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'cancelling', 'cancelled')),
-    error TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    started_at INTEGER,
-    finished_at INTEGER
-);
-
-CREATE INDEX jobs_status_created ON jobs(status, created_at);
-
-CREATE TABLE job_steps (
-    job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-    step_key TEXT NOT NULL,
-    position INTEGER NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled')),
-    attempt_count INTEGER NOT NULL DEFAULT 0,
-    result_json BLOB,
-    redacted_output TEXT,
-    error TEXT,
-    started_at INTEGER,
-    finished_at INTEGER,
-    PRIMARY KEY (job_id, step_key),
-    UNIQUE (job_id, position)
-);
-
-CREATE TABLE audit_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL,
-    action TEXT NOT NULL,
-    target_kind TEXT,
-    target_id TEXT,
-    detail_json BLOB NOT NULL DEFAULT '{}',
-    created_at INTEGER NOT NULL
-);
-
-CREATE INDEX audit_events_created ON audit_events(created_at);
-
-CREATE TABLE managed_resources (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL,
-    external_id TEXT,
-    path TEXT,
-    owner_job_id TEXT REFERENCES jobs(id) ON DELETE SET NULL,
-    created_at INTEGER NOT NULL,
-    CHECK (external_id IS NOT NULL OR path IS NOT NULL)
-);
-
-CREATE INDEX managed_resources_owner_job ON managed_resources(owner_job_id);
-CREATE UNIQUE INDEX managed_resources_external ON managed_resources(kind, external_id) WHERE external_id IS NOT NULL;
-CREATE UNIQUE INDEX managed_resources_path ON managed_resources(kind, path) WHERE path IS NOT NULL;
-
-CREATE TABLE settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-);`

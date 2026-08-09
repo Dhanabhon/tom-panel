@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 
+	"github.com/Dhanabhon/tom-panel/migrations"
 	_ "modernc.org/sqlite"
 )
 
@@ -29,11 +31,10 @@ func Open(ctx context.Context, dbPath, keyPath string) (*Store, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	// ponytail: one connection keeps connection-local PRAGMAs invariant; use a connector hook if profiling requires a pool.
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	if err := initialize(ctx, db); err != nil {
@@ -48,20 +49,21 @@ func initialize(ctx context.Context, db *sql.DB) error {
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("connect sqlite: %w", err)
 	}
-	for _, pragma := range []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA foreign_keys=ON",
-		"PRAGMA busy_timeout=5000",
-		"PRAGMA synchronous=FULL",
-	} {
-		if _, err := db.ExecContext(ctx, pragma); err != nil {
-			return fmt.Errorf("configure sqlite: %w", err)
-		}
-	}
-	if err := migrate(ctx, db, coreMigrations); err != nil {
+	if err := migrate(ctx, db, migrations.FS); err != nil {
 		return fmt.Errorf("migrate sqlite: %w", err)
 	}
 	return nil
+}
+
+func sqliteDSN(path string) string {
+	u := url.URL{Scheme: "file", Path: path}
+	query := u.Query()
+	query.Set("_journal_mode", "WAL")
+	query.Set("_foreign_keys", "ON")
+	query.Set("_busy_timeout", "5000")
+	query.Set("_synchronous", "FULL")
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 func readMasterKey(path string) ([]byte, error) {
