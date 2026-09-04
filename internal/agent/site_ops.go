@@ -210,16 +210,26 @@ func activateNginx(ctx context.Context, input nginxActivateInput, env nginxEnvir
 		}
 		return restoreErr
 	}
+	rollback := func() error {
+		if err := restore(); err != nil {
+			return err
+		}
+		if err := env.run(ctx, "/usr/sbin/nginx", "-t"); err != nil {
+			return fmt.Errorf("validate Nginx rollback: %w", err)
+		}
+		if err := env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"); err != nil {
+			return fmt.Errorf("reload Nginx rollback: %w", err)
+		}
+		return nil
+	}
 	if err := env.run(ctx, "/usr/sbin/nginx", "-t"); err != nil {
 		return errors.Join(fmt.Errorf("validate nginx: %w", err), restore())
 	}
 	if err := env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"); err != nil {
-		return errors.Join(fmt.Errorf("reload nginx: %w", err), restore(),
-			env.run(ctx, "/usr/sbin/nginx", "-t"), env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"))
+		return errors.Join(fmt.Errorf("reload nginx: %w", err), rollback())
 	}
 	if err := env.health(ctx, host, input.HealthPort); err != nil {
-		return errors.Join(fmt.Errorf("health-check nginx: %w", err), restore(),
-			env.run(ctx, "/usr/sbin/nginx", "-t"), env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"))
+		return errors.Join(fmt.Errorf("health-check nginx: %w", err), rollback())
 	}
 	if err := root.Remove(backup); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove Nginx rollback: %w", err)

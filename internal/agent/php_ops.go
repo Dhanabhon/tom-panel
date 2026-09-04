@@ -74,12 +74,23 @@ func activatePHPPool(ctx context.Context, input phpPoolInput, rootPath string, r
 	}
 	binary := "/usr/sbin/php-fpm" + input.Version
 	service := "php" + input.Version + "-fpm"
+	rollback := func() error {
+		if err := restore(); err != nil {
+			return err
+		}
+		if err := run(ctx, binary, "-t"); err != nil {
+			return fmt.Errorf("validate PHP-FPM rollback: %w", err)
+		}
+		if err := run(ctx, "/usr/bin/systemctl", "reload", service); err != nil {
+			return fmt.Errorf("reload PHP-FPM rollback: %w", err)
+		}
+		return nil
+	}
 	if err := run(ctx, binary, "-t"); err != nil {
 		return errors.Join(fmt.Errorf("validate PHP-FPM: %w", err), restore())
 	}
 	if err := run(ctx, "/usr/bin/systemctl", "reload", service); err != nil {
-		return errors.Join(fmt.Errorf("reload PHP-FPM: %w", err), restore(),
-			run(ctx, binary, "-t"), run(ctx, "/usr/bin/systemctl", "reload", service))
+		return errors.Join(fmt.Errorf("reload PHP-FPM: %w", err), rollback())
 	}
 	return nil
 }
@@ -109,12 +120,23 @@ func disablePHPPool(ctx context.Context, input phpPoolInput, rootPath string, ru
 	}
 	restore := func() error { return root.WriteFile(name, old, 0o640) }
 	binary, service := "/usr/sbin/php-fpm"+input.Version, "php"+input.Version+"-fpm"
+	rollback := func() error {
+		if err := restore(); err != nil {
+			return err
+		}
+		if err := run(ctx, binary, "-t"); err != nil {
+			return fmt.Errorf("validate PHP-FPM rollback: %w", err)
+		}
+		if err := run(ctx, "/usr/bin/systemctl", "reload", service); err != nil {
+			return fmt.Errorf("reload PHP-FPM rollback: %w", err)
+		}
+		return nil
+	}
 	if err := run(ctx, binary, "-t"); err != nil {
 		return errors.Join(fmt.Errorf("validate PHP-FPM without pool: %w", err), restore())
 	}
 	if err := run(ctx, "/usr/bin/systemctl", "reload", service); err != nil {
-		return errors.Join(fmt.Errorf("reload PHP-FPM without pool: %w", err), restore(),
-			run(ctx, binary, "-t"), run(ctx, "/usr/bin/systemctl", "reload", service))
+		return errors.Join(fmt.Errorf("reload PHP-FPM without pool: %w", err), rollback())
 	}
 	return nil
 }
