@@ -10,6 +10,7 @@ import (
 
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
+	"github.com/Dhanabhon/tom-panel/internal/sites"
 	"github.com/Dhanabhon/tom-panel/internal/store"
 )
 
@@ -77,6 +78,19 @@ func (h *JobsHandlers) cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jobID := r.PathValue("jobID")
+	job, err := h.jobs.Get(r.Context(), jobID)
+	if err != nil {
+		if errors.Is(err, jobs.ErrJobNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "job could not be loaded", http.StatusInternalServerError)
+		return
+	}
+	if job.Kind == sites.ProvisionJobKind || job.Kind == sites.SetEnabledJobKind {
+		http.Error(w, "site jobs cannot be cancelled between dependent server changes", http.StatusConflict)
+		return
+	}
 	if err := h.jobs.CancelWithAudit(r.Context(), jobID, jobs.Audit{
 		AdminID: session.AdminID,
 		Action:  "job.cancel.requested",

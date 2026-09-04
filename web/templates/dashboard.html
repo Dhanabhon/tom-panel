@@ -54,7 +54,7 @@
                   {{range .Steps}}<li data-step-key="{{.Key}}"><span>{{.Key}}</span><span data-step-status>{{.Status}}</span><span>Attempt {{.AttemptCount}}</span></li>{{end}}
                 </ol>
                 {{end}}
-                {{if canCancel .Status}}
+                {{if canCancel .Kind .Status}}
                 <form method="post" action="/jobs/{{.ID}}/cancel">
                   <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
                   <button class="text-button danger" type="submit">Cancel between steps</button>
@@ -75,8 +75,8 @@
           </section>
 
           <section class="panel" aria-labelledby="sites-title">
-            <header class="panel-head"><h2 id="sites-title">Sites</h2></header>
-            <div class="empty-state"><h3>No managed sites</h3><p>The foundation slice does not expose site controls until the site model is installed.</p></div>
+            <header class="panel-head"><h2 id="sites-title">Sites</h2><a class="text-button" href="/sites">View all</a></header>
+            <div class="panel-body"><p>Create Static, PHP, and Reverse Proxy sites with durable provisioning and reversible disable.</p><a class="btn primary" href="/sites/new">Create site</a></div>
           </section>
         </div>
 

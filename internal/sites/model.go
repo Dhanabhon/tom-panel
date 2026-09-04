@@ -24,6 +24,7 @@ type CreateInput struct {
 	PrimaryDomain string `json:"primary_domain"`
 	HTTPPort      int    `json:"http_port,omitempty"`
 	HTTPSPort     int    `json:"https_port"`
+	Public        bool   `json:"public"`
 	PHPVersion    string `json:"php_version,omitempty"`
 	ProxyTarget   string `json:"proxy_target,omitempty"`
 }
@@ -35,6 +36,7 @@ type Site struct {
 	PrimaryDomain string
 	HTTPPort      int
 	HTTPSPort     int
+	Public        bool
 	PHPVersion    string
 	ProxyTarget   string
 	CreatedAt     time.Time

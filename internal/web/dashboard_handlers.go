@@ -9,6 +9,7 @@ import (
 
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
+	"github.com/Dhanabhon/tom-panel/internal/sites"
 	webassets "github.com/Dhanabhon/tom-panel/web"
 )
 
@@ -153,8 +154,8 @@ func jobTime(value time.Time) string {
 	return value.Local().Format("2 Jan · 15:04")
 }
 
-func canCancel(status jobs.Status) bool {
-	return status == jobs.StatusQueued || status == jobs.StatusRunning
+func canCancel(kind string, status jobs.Status) bool {
+	return kind != sites.ProvisionJobKind && kind != sites.SetEnabledJobKind && (status == jobs.StatusQueued || status == jobs.StatusRunning)
 }
 
 func canRetry(status jobs.Status, code jobs.ErrorCode) bool {

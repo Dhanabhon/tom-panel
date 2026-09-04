@@ -31,6 +31,7 @@ func TestRepositoryCreatesNormalizedSite(t *testing.T) {
 		Kind:          KindPHP,
 		PrimaryDomain: "BÜCHER.example.",
 		HTTPSPort:     443,
+		Public:        true,
 		PHPVersion:    "8.4",
 	})
 	if err != nil {

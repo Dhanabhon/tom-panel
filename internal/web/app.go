@@ -16,6 +16,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/domains"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
+	"github.com/Dhanabhon/tom-panel/internal/sites"
 	"github.com/Dhanabhon/tom-panel/internal/store"
 	webassets "github.com/Dhanabhon/tom-panel/web"
 )
@@ -40,7 +41,16 @@ func New(cfg config.Config) (*App, error) {
 	service := auth.New(database, time.Now)
 	agent := agentapi.NewClient(cfg.AgentSocket)
 	manager := jobs.NewManager(database)
+	repository := sites.NewRepository(database)
+	runtimeService := panelruntime.NewService(database)
+	domainService := domains.NewService(database, agent)
+	provisioner := sites.NewProvisioner(repository, runtimeService, agent, func(site sites.Site) ([]byte, error) {
+		return domains.RenderNginx(site, []domains.Hostname{domains.Hostname(site.PrimaryDomain)})
+	})
 	if err := registerDemoJob(manager, agent); err != nil {
+		return nil, err
+	}
+	if err := provisioner.Register(manager); err != nil {
 		return nil, err
 	}
 	if err := manager.ResumeIncomplete(context.Background()); err != nil {
@@ -54,11 +64,15 @@ func New(cfg config.Config) (*App, error) {
 	authHandlers := NewAuthHandlers(service).Handler()
 	jobRoutes := NewJobsHandlers(database, service, manager)
 	jobHandlers := jobRoutes.Handler()
-	domainRoutes, err := NewDomainHandlers(service, domains.NewService(database, agent), serverName())
+	domainRoutes, err := NewDomainHandlers(service, domainService, serverName())
 	if err != nil {
 		return nil, err
 	}
-	runtimeRoutes, err := NewRuntimeHandlers(service, panelruntime.NewService(database), serverName())
+	runtimeRoutes, err := NewRuntimeHandlers(service, runtimeService, serverName())
+	if err != nil {
+		return nil, err
+	}
+	siteRoutes, err := NewSiteHandlers(service, repository, runtimeService, provisioner, manager, serverName())
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +92,12 @@ func New(cfg config.Config) (*App, error) {
 	mux.Handle("POST /jobs/{jobID}/retry", jobHandlers)
 	mux.Handle("GET /jobs/{jobID}/events", jobHandlers)
 	mux.Handle("GET /domains", domainRoutes.Handler())
+	mux.Handle("GET /sites", siteRoutes.Handler())
+	mux.Handle("GET /sites/new", siteRoutes.Handler())
+	mux.Handle("POST /sites", siteRoutes.Handler())
+	mux.Handle("GET /sites/{siteID}", siteRoutes.Handler())
+	mux.Handle("POST /sites/{siteID}/disable", siteRoutes.Handler())
+	mux.Handle("POST /sites/{siteID}/enable", siteRoutes.Handler())
 	mux.Handle("GET /sites/{siteID}/runtime", runtimeRoutes.Handler())
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())

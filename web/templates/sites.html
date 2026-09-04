@@ -1,0 +1,26 @@
+{{define "sites"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar">
+      <div><span class="crumb">Server / Sites</span><strong class="mono">{{.ServerName}}</strong></div>
+      <form method="post" action="/logout"><input name="csrf_token" type="hidden" value="{{.CSRFToken}}"><button class="btn" type="submit">Sign out</button></form>
+    </header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Websites</p><h1>Sites</h1><p>Create and manage every website hosted on this server.</p></div><a class="btn primary" href="/sites/new">Create site</a></header>
+      <section class="panel">
+        <header class="panel-head"><h2>All sites</h2><span class="badge neutral">{{len .Sites}} sites</span></header>
+        {{if .Sites}}
+        <div class="table-scroll"><table class="site-table"><thead><tr><th>Domain</th><th>Type</th><th>Access</th><th>Status</th><th><span class="visually-hidden">Open</span></th></tr></thead><tbody>
+          {{range .Sites}}<tr><td><a class="site-link" href="/sites/{{.ID}}"><strong>{{.PrimaryDomain}}</strong><span class="mono">:{{.HTTPPort}}</span></a></td><td>{{.Kind}}</td><td>{{if .Public}}Public{{else}}Private · SSH tunnel{{end}}</td><td><span class="badge {{if eq .State "active"}}good{{else if eq .State "failed"}}bad{{else if eq .State "provisioning"}}warn{{else}}neutral{{end}}">{{.State}}</span></td><td><a class="text-button" href="/sites/{{.ID}}">Overview</a></td></tr>{{end}}
+        </tbody></table></div>
+        {{else}}<div class="empty-state"><h3>No sites yet</h3><p>Create a Static, PHP, or Reverse Proxy site to begin.</p></div>{{end}}
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

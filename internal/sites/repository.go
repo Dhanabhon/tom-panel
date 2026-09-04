@@ -42,7 +42,7 @@ func (r *Repository) Create(ctx context.Context, input CreateInput) (Site, error
 	site := Site{
 		ID: siteID, Kind: input.Kind, State: StateProvisioning,
 		PrimaryDomain: hostname, HTTPPort: input.HTTPPort, HTTPSPort: input.HTTPSPort,
-		PHPVersion: input.PHPVersion, ProxyTarget: input.ProxyTarget,
+		Public: input.Public, PHPVersion: input.PHPVersion, ProxyTarget: input.ProxyTarget,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	err = r.store.Tx(ctx, func(tx *sql.Tx) error {
@@ -58,8 +58,8 @@ func (r *Repository) Create(ctx context.Context, input CreateInput) (Site, error
 			proxyTarget = input.ProxyTarget
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO sites
-			(id, kind, state, primary_domain, http_port, https_port, php_version, proxy_target, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, site.ID, site.Kind, site.State, hostname, httpPort, input.HTTPSPort, phpVersion, proxyTarget, now.Unix(), now.Unix()); err != nil {
+			(id, kind, state, primary_domain, http_port, https_port, public, php_version, proxy_target, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, site.ID, site.Kind, site.State, hostname, httpPort, input.HTTPSPort, input.Public, phpVersion, proxyTarget, now.Unix(), now.Unix()); err != nil {
 			return fmt.Errorf("insert site: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO domains
@@ -98,9 +98,9 @@ func (r *Repository) Get(ctx context.Context, id string) (Site, error) {
 	var phpVersion, proxyTarget sql.NullString
 	var createdAt, updatedAt int64
 	err := r.store.Tx(ctx, func(tx *sql.Tx) error {
-		return tx.QueryRowContext(ctx, `SELECT id, kind, state, primary_domain, http_port, https_port,
+		return tx.QueryRowContext(ctx, `SELECT id, kind, state, primary_domain, http_port, https_port, public,
 			php_version, proxy_target, created_at, updated_at FROM sites WHERE id = ?`, id).
-			Scan(&site.ID, &site.Kind, &site.State, &site.PrimaryDomain, &httpPort, &site.HTTPSPort,
+			Scan(&site.ID, &site.Kind, &site.State, &site.PrimaryDomain, &httpPort, &site.HTTPSPort, &site.Public,
 				&phpVersion, &proxyTarget, &createdAt, &updatedAt)
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -115,6 +115,34 @@ func (r *Repository) Get(ctx context.Context, id string) (Site, error) {
 	site.CreatedAt = time.Unix(createdAt, 0).UTC()
 	site.UpdatedAt = time.Unix(updatedAt, 0).UTC()
 	return site, nil
+}
+
+func (r *Repository) List(ctx context.Context) ([]Site, error) {
+	var result []Site
+	err := r.store.Tx(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `SELECT id, kind, state, primary_domain, http_port, https_port, public,
+			php_version, proxy_target, created_at, updated_at FROM sites ORDER BY created_at DESC, id DESC`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var site Site
+			var httpPort sql.NullInt64
+			var phpVersion, proxyTarget sql.NullString
+			var createdAt, updatedAt int64
+			if err := rows.Scan(&site.ID, &site.Kind, &site.State, &site.PrimaryDomain, &httpPort, &site.HTTPSPort, &site.Public,
+				&phpVersion, &proxyTarget, &createdAt, &updatedAt); err != nil {
+				return err
+			}
+			site.HTTPPort = int(httpPort.Int64)
+			site.PHPVersion, site.ProxyTarget = phpVersion.String, proxyTarget.String
+			site.CreatedAt, site.UpdatedAt = time.Unix(createdAt, 0).UTC(), time.Unix(updatedAt, 0).UTC()
+			result = append(result, site)
+		}
+		return rows.Err()
+	})
+	return result, err
 }
 
 func (r *Repository) SetState(ctx context.Context, id string, next State) error {

@@ -1,0 +1,19 @@
+{{define "site_overview"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Overview</span><strong class="mono">{{.Site.ID}}</strong></div><a class="btn" href="/sites">All sites</a></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Site overview</p><h1>{{.Site.PrimaryDomain}}</h1><p>{{if .Site.Public}}Public website{{else}}Private website · connect through an SSH tunnel{{end}}</p></div><span class="badge {{if eq .Site.State "active"}}good{{else if eq .Site.State "failed"}}bad{{else if eq .Site.State "provisioning"}}warn{{else}}neutral{{end}}">{{.Site.State}}</span></header>
+      {{if .JobID}}<p class="notice"><strong>Server task queued</strong><span>Follow live progress from the Dashboard.</span><a href="/?job={{.JobID}}">View task</a></p>{{end}}
+      <section class="resource-strip" aria-label="Site configuration"><div class="resource"><span>Type</span><strong>{{.Site.Kind}}</strong></div><div class="resource"><span>HTTP</span><strong>:{{.Site.HTTPPort}}</strong></div><div class="resource"><span>HTTPS</span><strong>:{{.Site.HTTPSPort}}</strong></div><div class="resource"><span>Access</span><strong>{{if .Site.Public}}Public{{else}}Private{{end}}</strong></div></section>
+      <div class="dashboard-grid"><section class="panel"><header class="panel-head"><h2>Manage</h2></header><div class="panel-body link-grid"><a class="btn" href="/domains">Domains &amp; SSL</a>{{if eq .Site.Kind "php"}}<a class="btn" href="/sites/{{.Site.ID}}/runtime">PHP runtime</a>{{end}}</div></section>
+      <section class="panel"><header class="panel-head"><h2>Availability</h2></header><div class="panel-body"><p>Disabling removes only the TomPanel-owned Nginx configuration. Files, domains, and runtime settings stay intact.</p>{{if eq .Site.State "active"}}<form method="post" action="/sites/{{.Site.ID}}/disable"><input name="csrf_token" type="hidden" value="{{.CSRFToken}}"><button class="btn" type="submit">Disable site</button></form>{{else if eq .Site.State "disabled"}}<form method="post" action="/sites/{{.Site.ID}}/enable"><input name="csrf_token" type="hidden" value="{{.CSRFToken}}"><button class="btn primary" type="submit">Re-enable and validate</button></form>{{end}}</div></section></div>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

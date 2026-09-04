@@ -42,3 +42,31 @@ func TestRenderNginxRejectsInjectedHostname(t *testing.T) {
 		t.Fatal("directive injection hostname accepted")
 	}
 }
+
+func TestRenderPrivateSiteRestrictsRemoteClients(t *testing.T) {
+	config, err := RenderNginx(sites.Site{
+		ID: "0123456789abcdef0123456789abcdef", Kind: sites.KindStatic,
+		PrimaryDomain: "private.example.com", HTTPPort: 8080, HTTPSPort: 8443,
+	}, []Hostname{"private.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, directive := range []string{"allow 127.0.0.1;", "allow ::1;", "deny all;"} {
+		if !strings.Contains(string(config), directive) {
+			t.Fatalf("private config omitted %q:\n%s", directive, config)
+		}
+	}
+}
+
+func TestRenderPublicSiteDoesNotRestrictRemoteClients(t *testing.T) {
+	config, err := RenderNginx(sites.Site{
+		ID: "0123456789abcdef0123456789abcdef", Kind: sites.KindStatic, Public: true,
+		PrimaryDomain: "public.example.com", HTTPPort: 80, HTTPSPort: 443,
+	}, []Hostname{"public.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(config), "deny all;") {
+		t.Fatalf("public site was restricted:\n%s", config)
+	}
+}

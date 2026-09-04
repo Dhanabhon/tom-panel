@@ -17,7 +17,7 @@ func RenderNginx(site sites.Site, hostnames []Hostname) ([]byte, error) {
 	}
 	input := sites.CreateInput{
 		Kind: site.Kind, PrimaryDomain: site.PrimaryDomain, HTTPPort: site.HTTPPort,
-		HTTPSPort: site.HTTPSPort, PHPVersion: site.PHPVersion, ProxyTarget: site.ProxyTarget,
+		HTTPSPort: site.HTTPSPort, Public: site.Public, PHPVersion: site.PHPVersion, ProxyTarget: site.ProxyTarget,
 	}
 	if err := sites.ValidateCreate(input, nil); err != nil {
 		return nil, err
@@ -54,7 +54,11 @@ func RenderNginx(site sites.Site, hostnames []Hostname) ([]byte, error) {
 		return nil, errors.New("unsupported site kind")
 	}
 
-	config := fmt.Sprintf("# Managed by TomPanel: %s\nserver {\n    listen %d;\n    server_name %s;\n    root %s;\n    index index.html index.php;\n%s}\n",
-		site.ID, site.HTTPPort, strings.Join(names, " "), root, body)
+	access := ""
+	if !site.Public {
+		access = "    allow 127.0.0.1;\n    allow ::1;\n    deny all;\n"
+	}
+	config := fmt.Sprintf("# Managed by TomPanel: %s\nserver {\n    listen %d;\n    server_name %s;\n    root %s;\n    index index.html index.php;\n%s%s}\n",
+		site.ID, site.HTTPPort, strings.Join(names, " "), root, access, body)
 	return []byte(config), nil
 }
