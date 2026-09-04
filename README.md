@@ -57,13 +57,13 @@ go test ./...
 go build ./cmd/...
 ```
 
-Run the repeatable Ubuntu 24.04 AMD64 verification container before testing on a VPS:
+Run the Ubuntu 24.04 AMD64 verification before testing on a VPS:
 
 ```bash
 ./scripts/test-docker.sh
 ```
 
-This checks the Go test suite and race detector, static analysis, Linux builds, JavaScript syntax, and the Ubuntu package paths/configuration for Nginx and PHP-FPM. It does not replace VPS acceptance for systemd, UFW, reboot recovery, public networking, or ACME certificates.
+This checks the Go test suite and race detector, static analysis, Linux builds, JavaScript syntax, and TomPanel-generated Nginx/PHP-FPM 8.3 configuration against Ubuntu's packages. PHP 8.3 is the default because Ubuntu 24.04 ships it; later PHP versions require an explicit package-source decision. It does not replace VPS acceptance for systemd, root-agent socket permissions, Linux users and filesystems, UFW and public networking, DNS/ACME, reboot recovery, or rollback under real service failures.
 
 Example development configuration:
 

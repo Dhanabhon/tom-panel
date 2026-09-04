@@ -13,4 +13,4 @@ docker info >/dev/null 2>&1 || {
   exit 1
 }
 
-exec docker build --platform linux/amd64 --progress=plain --target verify -f "$project_dir/Dockerfile.test" "$project_dir"
+exec docker build --platform linux/amd64 --progress=plain --target verify --tag tompanel-verify:local -f "$project_dir/Dockerfile.test" "$project_dir"
