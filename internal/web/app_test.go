@@ -99,9 +99,10 @@ func TestAppIntegratesLoginStaticAndAuthenticatedRoutes(t *testing.T) {
 		wantStatus int
 		wantBody   string
 	}{
-		{path: "/login", wantStatus: http.StatusOK, wantBody: "Welcome back"},
+		{path: "/login", wantStatus: http.StatusOK, wantBody: `/static/tompanel-logo.png`},
 		{path: "/setup", wantStatus: http.StatusOK, wantBody: "Secure this server"},
 		{path: "/static/app.css", wantStatus: http.StatusOK, wantBody: "--accent"},
+		{path: "/static/tompanel-logo.png", wantStatus: http.StatusOK, wantBody: "PNG"},
 		{path: "/jobs/job-id/events", wantStatus: http.StatusUnauthorized, wantBody: "authentication required"},
 	}
 	for _, check := range checks {
