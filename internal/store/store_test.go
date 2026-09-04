@@ -68,8 +68,12 @@ func TestTxRollsBackFailedWork(t *testing.T) {
 
 func TestMigrationsAreAtomic(t *testing.T) {
 	s := openTestStore(t)
+	var before int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
 	err := migrate(context.Background(), s.db, fstest.MapFS{
-		"0002_broken.sql": {Data: []byte("CREATE TABLE must_rollback (id INTEGER); this is not SQL;")},
+		"9999_broken.sql": {Data: []byte("CREATE TABLE must_rollback (id INTEGER); this is not SQL;")},
 	})
 	if err == nil {
 		t.Fatal("broken migration succeeded")
@@ -79,8 +83,8 @@ func TestMigrationsAreAtomic(t *testing.T) {
 	if err := s.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
-	if versions != 1 {
-		t.Fatalf("schema_migrations contains %d rows, want 1", versions)
+	if versions != before {
+		t.Fatalf("schema_migrations contains %d rows, want %d", versions, before)
 	}
 
 	var tables int
