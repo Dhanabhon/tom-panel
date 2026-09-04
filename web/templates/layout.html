@@ -16,6 +16,7 @@
   <div class="nav-content" id="main-nav">
     <p class="nav-label">Manage</p>
     <a class="nav-link{{if eq .CurrentNav "dashboard"}} active{{end}}" href="/"{{if eq .CurrentNav "dashboard"}} aria-current="page"{{end}}>Dashboard</a>
+    <a class="nav-link{{if eq .CurrentNav "sites"}} active{{end}}" href="/sites"{{if eq .CurrentNav "sites"}} aria-current="page"{{end}}>Sites</a>
     <a class="nav-link{{if eq .CurrentNav "domains"}} active{{end}}" href="/domains"{{if eq .CurrentNav "domains"}} aria-current="page"{{end}}>Domains &amp; SSL</a>
     <div class="server-mini">
       <span class="muted">Server</span>

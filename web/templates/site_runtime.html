@@ -1,0 +1,22 @@
+{{define "site_runtime"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Runtime</span><strong class="mono">{{.SiteID}}</strong></div></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Per-site process pool</p><h1>PHP {{.Config.Version}}</h1><p>Current validated PHP-FPM limits for this site.</p></div></header>
+      <section class="resource-strip" aria-label="PHP limits">
+        <div class="resource"><span>Memory</span><strong>{{.Config.MemoryMB}} MB</strong></div>
+        <div class="resource"><span>Upload</span><strong>{{.Config.UploadMB}} MB</strong></div>
+        <div class="resource"><span>POST</span><strong>{{.Config.PostMB}} MB</strong></div>
+        <div class="resource"><span>Execution</span><strong>{{.Config.ExecutionSeconds}} seconds</strong></div>
+      </section>
+      <section class="panel"><div class="panel-body"><p>Extension installation affects every site using PHP {{.Config.Version}} and will require explicit confirmation from the affected-sites list.</p></div></section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

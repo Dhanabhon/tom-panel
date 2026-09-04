@@ -15,6 +15,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/config"
 	"github.com/Dhanabhon/tom-panel/internal/domains"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
+	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
 	"github.com/Dhanabhon/tom-panel/internal/store"
 	webassets "github.com/Dhanabhon/tom-panel/web"
 )
@@ -57,6 +58,10 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	runtimeRoutes, err := NewRuntimeHandlers(service, panelruntime.NewService(database), serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -73,6 +78,7 @@ func New(cfg config.Config) (*App, error) {
 	mux.Handle("POST /jobs/{jobID}/retry", jobHandlers)
 	mux.Handle("GET /jobs/{jobID}/events", jobHandlers)
 	mux.Handle("GET /domains", domainRoutes.Handler())
+	mux.Handle("GET /sites/{siteID}/runtime", runtimeRoutes.Handler())
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
 	if err := manager.Start(context.Background()); err != nil {

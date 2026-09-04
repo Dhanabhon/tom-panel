@@ -69,6 +69,24 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 		}
 		result, err := activateCertificate(ctx, input)
 		return operationResult(result, err)
+	case "php.ensure_pool":
+		var input phpPoolInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, ensurePHP(ctx, input, runCommand))
+	case "php.activate_pool":
+		var input phpPoolInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, activatePHPPool(ctx, input, phpPoolRoot(input.Version), runCommand))
+	case "php.install_extension":
+		var input phpExtensionInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, installPHPExtension(ctx, input))
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}
