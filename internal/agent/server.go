@@ -98,7 +98,7 @@ type Server struct {
 	conn            net.Conn
 	expectedUID     uint32
 	peerCredentials peerCredentialsFunc
-	dispatchRequest func(agentapi.Request) (json.RawMessage, *agentapi.Error)
+	dispatchRequest func(context.Context, agentapi.Request) (json.RawMessage, *agentapi.Error)
 }
 
 func NewServer(conn net.Conn, expectedUID uint32) *Server {
@@ -128,7 +128,7 @@ func (s *Server) ServeOne(ctx context.Context) error {
 	if request.Version != agentapi.ProtocolVersion {
 		response.Error = &agentapi.Error{Code: "unsupported_version", Message: "agent protocol version is unsupported"}
 	} else {
-		response.Result, response.Error = s.dispatchRequest(request)
+		response.Result, response.Error = s.dispatchRequest(ctx, request)
 	}
 	return agentapi.WriteFrame(ctx, framedConn, response)
 }

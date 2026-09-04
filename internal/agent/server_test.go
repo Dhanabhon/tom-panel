@@ -147,7 +147,7 @@ func TestNewServerBoundsIdlePeer(t *testing.T) {
 
 func TestSlowOperationCanOutliveFramingTimeout(t *testing.T) {
 	srv, client := newTestServer(t, PeerCredentials{UID: 1001}, 1001)
-	srv.dispatchRequest = func(request agentapi.Request) (json.RawMessage, *agentapi.Error) {
+	srv.dispatchRequest = func(_ context.Context, request agentapi.Request) (json.RawMessage, *agentapi.Error) {
 		if request.Operation != "job.demo" {
 			return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 		}

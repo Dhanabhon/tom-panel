@@ -28,7 +28,7 @@ func (r *Repository) Create(ctx context.Context, input CreateInput) (Site, error
 	if err := ValidateCreate(input, nil); err != nil {
 		return Site{}, err
 	}
-	hostname, _ := normalizeHostname(input.PrimaryDomain)
+	hostname, _ := NormalizeHostname(input.PrimaryDomain)
 	input.PrimaryDomain = hostname
 	siteID, err := newID()
 	if err != nil {

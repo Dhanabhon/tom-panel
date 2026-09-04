@@ -19,7 +19,7 @@ var (
 )
 
 func ValidateCreate(input CreateInput, occupied []Endpoint) error {
-	hostname, err := normalizeHostname(input.PrimaryDomain)
+	hostname, err := NormalizeHostname(input.PrimaryDomain)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func ValidateCreate(input CreateInput, occupied []Endpoint) error {
 	}
 
 	for _, endpoint := range occupied {
-		other, err := normalizeHostname(endpoint.Hostname)
+		other, err := NormalizeHostname(endpoint.Hostname)
 		if err == nil && other == hostname && (endpoint.Port == input.HTTPSPort || input.HTTPPort != 0 && endpoint.Port == input.HTTPPort) {
 			return fmt.Errorf("%w: owned by %s", ErrEndpointOccupied, endpoint.Owner)
 		}
@@ -69,7 +69,7 @@ func ValidateStateTransition(from, to State) error {
 	return nil
 }
 
-func normalizeHostname(value string) (string, error) {
+func NormalizeHostname(value string) (string, error) {
 	value = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(value)), ".")
 	ASCII, err := idna.Lookup.ToASCII(value)
 	if err != nil || len(ASCII) > 253 || net.ParseIP(ASCII) != nil {
