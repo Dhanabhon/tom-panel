@@ -13,6 +13,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/config"
+	"github.com/Dhanabhon/tom-panel/internal/domains"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	"github.com/Dhanabhon/tom-panel/internal/store"
 	webassets "github.com/Dhanabhon/tom-panel/web"
@@ -52,6 +53,10 @@ func New(cfg config.Config) (*App, error) {
 	authHandlers := NewAuthHandlers(service).Handler()
 	jobRoutes := NewJobsHandlers(database, service, manager)
 	jobHandlers := jobRoutes.Handler()
+	domainRoutes, err := NewDomainHandlers(service, domains.NewService(database, agent), serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -67,6 +72,7 @@ func New(cfg config.Config) (*App, error) {
 	mux.Handle("POST /jobs/{jobID}/cancel", jobHandlers)
 	mux.Handle("POST /jobs/{jobID}/retry", jobHandlers)
 	mux.Handle("GET /jobs/{jobID}/events", jobHandlers)
+	mux.Handle("GET /domains", domainRoutes.Handler())
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
 	if err := manager.Start(context.Background()); err != nil {

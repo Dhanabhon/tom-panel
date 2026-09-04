@@ -1,0 +1,28 @@
+{{define "domains"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar">
+      <div><span class="crumb">Server / Domains &amp; SSL</span><strong class="mono">{{.ServerName}}</strong></div>
+      <form method="post" action="/logout"><input name="csrf_token" type="hidden" value="{{.CSRFToken}}"><button class="btn" type="submit">Sign out</button></form>
+    </header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Routing ownership</p><h1>Domains &amp; SSL</h1><p>Only endpoints recorded as TomPanel-managed can be changed or removed.</p></div></header>
+      <section class="panel">
+        <header class="panel-head"><h2>Managed hostnames</h2><span class="badge neutral">{{len .Domains}} endpoints</span></header>
+        {{if .Domains}}
+        <ol class="job-list">
+          {{range .Domains}}<li class="job-row"><div class="job-main"><strong>{{.Hostname}}</strong><code>:{{.Port}}</code><span>{{.Kind}}</span></div>{{if .RedirectTarget}}<p>Redirects to {{.RedirectTarget}}</p>{{end}}</li>{{end}}
+        </ol>
+        {{else}}
+        <div class="empty-state"><h3>No managed domains</h3><p>Domains will appear here after a site is created.</p></div>
+        {{end}}
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

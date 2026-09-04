@@ -32,19 +32,14 @@ type dashboardPageData struct {
 	CSRFToken  string
 	Jobs       []jobs.Job
 	SelectedID string
+	CurrentNav string
 }
 
 func NewDashboardHandlers(service *auth.Service, manager *jobs.Manager, serverName string) (*DashboardHandlers, error) {
 	if strings.TrimSpace(serverName) == "" {
 		serverName = "TomPanel server"
 	}
-	templates, err := template.New("pages").Funcs(template.FuncMap{
-		"statusClass": statusClass,
-		"statusLabel": statusLabel,
-		"jobTime":     jobTime,
-		"canCancel":   canCancel,
-		"canRetry":    canRetry,
-	}).ParseFS(webassets.FS, "templates/*.html")
+	templates, err := pageTemplates()
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +48,16 @@ func NewDashboardHandlers(service *auth.Service, manager *jobs.Manager, serverNa
 	h.mux.HandleFunc("GET /setup", h.setup)
 	h.mux.HandleFunc("GET /", h.dashboardRoute)
 	return h, nil
+}
+
+func pageTemplates() (*template.Template, error) {
+	return template.New("pages").Funcs(template.FuncMap{
+		"statusClass": statusClass,
+		"statusLabel": statusLabel,
+		"jobTime":     jobTime,
+		"canCancel":   canCancel,
+		"canRetry":    canRetry,
+	}).ParseFS(webassets.FS, "templates/*.html")
 }
 
 func (h *DashboardHandlers) Handler() http.Handler {
@@ -87,6 +92,7 @@ func (h *DashboardHandlers) dashboard(w http.ResponseWriter, r *http.Request) {
 		CSRFToken:  session.CSRFToken,
 		Jobs:       recent,
 		SelectedID: r.URL.Query().Get("job"),
+		CurrentNav: "dashboard",
 	})
 }
 

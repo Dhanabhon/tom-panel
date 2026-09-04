@@ -15,8 +15,8 @@
   <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="main-nav">Menu</button>
   <div class="nav-content" id="main-nav">
     <p class="nav-label">Manage</p>
-    <a class="nav-link active" href="/" aria-current="page">Dashboard</a>
-    <p class="nav-note">Site and service controls appear as managed resources are added.</p>
+    <a class="nav-link{{if eq .CurrentNav "dashboard"}} active{{end}}" href="/"{{if eq .CurrentNav "dashboard"}} aria-current="page"{{end}}>Dashboard</a>
+    <a class="nav-link{{if eq .CurrentNav "domains"}} active{{end}}" href="/domains"{{if eq .CurrentNav "domains"}} aria-current="page"{{end}}>Domains &amp; SSL</a>
     <div class="server-mini">
       <span class="muted">Server</span>
       <strong class="mono">{{.ServerName}}</strong>

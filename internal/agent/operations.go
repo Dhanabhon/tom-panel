@@ -55,6 +55,20 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, removeOwnedUFW(ctx, input))
+	case "certificate.issue":
+		var input certificateIssueInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := issueCertificate(ctx, input)
+		return operationResult(result, err)
+	case "certificate.activate":
+		var input certificateActivateInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := activateCertificate(ctx, input)
+		return operationResult(result, err)
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}
