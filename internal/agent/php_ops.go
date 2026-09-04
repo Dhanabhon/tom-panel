@@ -60,24 +60,61 @@ func activatePHPPool(ctx context.Context, input phpPoolInput, rootPath string, r
 	if err := root.Rename(temporary, name); err != nil {
 		return err
 	}
-	restore := func() {
+	restore := func() error {
 		if hadOld {
-			_ = root.WriteFile(name, old, 0o640)
-		} else {
-			_ = root.Remove(name)
+			if err := root.WriteFile(name, old, 0o640); err != nil {
+				return fmt.Errorf("restore PHP-FPM pool: %w", err)
+			}
+			return nil
 		}
+		if err := root.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove failed PHP-FPM pool: %w", err)
+		}
+		return nil
 	}
 	binary := "/usr/sbin/php-fpm" + input.Version
 	service := "php" + input.Version + "-fpm"
 	if err := run(ctx, binary, "-t"); err != nil {
-		restore()
-		return fmt.Errorf("validate PHP-FPM: %w", err)
+		return errors.Join(fmt.Errorf("validate PHP-FPM: %w", err), restore())
 	}
 	if err := run(ctx, "/usr/bin/systemctl", "reload", service); err != nil {
-		restore()
-		_ = run(ctx, binary, "-t")
-		_ = run(ctx, "/usr/bin/systemctl", "reload", service)
-		return fmt.Errorf("reload PHP-FPM: %w", err)
+		return errors.Join(fmt.Errorf("reload PHP-FPM: %w", err), restore(),
+			run(ctx, binary, "-t"), run(ctx, "/usr/bin/systemctl", "reload", service))
+	}
+	return nil
+}
+
+func disablePHPPool(ctx context.Context, input phpPoolInput, rootPath string, run func(context.Context, string, ...string) error) error {
+	if !validSiteID(input.SiteID) || !validPHPVersion(input.Version) {
+		return errors.New("PHP pool payload is invalid")
+	}
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	name := "tp_" + input.SiteID[:16] + ".conf"
+	old, err := root.ReadFile(name)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(string(old), "; Managed by TomPanel: "+input.SiteID+"\n") {
+		return errors.New("refusing to remove an unmanaged PHP-FPM pool")
+	}
+	if err := root.Remove(name); err != nil {
+		return err
+	}
+	restore := func() error { return root.WriteFile(name, old, 0o640) }
+	binary, service := "/usr/sbin/php-fpm"+input.Version, "php"+input.Version+"-fpm"
+	if err := run(ctx, binary, "-t"); err != nil {
+		return errors.Join(fmt.Errorf("validate PHP-FPM without pool: %w", err), restore())
+	}
+	if err := run(ctx, "/usr/bin/systemctl", "reload", service); err != nil {
+		return errors.Join(fmt.Errorf("reload PHP-FPM without pool: %w", err), restore(),
+			run(ctx, binary, "-t"), run(ctx, "/usr/bin/systemctl", "reload", service))
 	}
 	return nil
 }

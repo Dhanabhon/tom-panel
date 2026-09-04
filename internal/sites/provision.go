@@ -118,8 +118,10 @@ func (p *Provisioner) buildProvisionJob(raw json.RawMessage) (jobs.Definition, e
 		return jobs.Definition{}, err
 	}
 	steps := []jobs.Step{
-		p.provisionAgentStep("site.identity", input.Site.ID, "site.ensure_identity", siteAgentInput{SiteID: input.Site.ID}),
-		p.provisionAgentStep("site.directories", input.Site.ID, "site.ensure_directories", siteAgentInput{SiteID: input.Site.ID}),
+		p.provisionResourceStep("site.identity", input.Site.ID, "site.ensure_identity", siteAgentInput{SiteID: input.Site.ID},
+			"linux_user", "tp_"+input.Site.ID[:16], ""),
+		p.provisionResourceStep("site.directories", input.Site.ID, "site.ensure_directories", siteAgentInput{SiteID: input.Site.ID},
+			"site_root", "", "/srv/tompanel/sites/"+input.Site.ID),
 	}
 	if input.PHPConfig != nil {
 		pool, err := panelruntime.RenderPool(input.Site.ID, *input.PHPConfig)
@@ -129,7 +131,8 @@ func (p *Provisioner) buildProvisionJob(raw json.RawMessage) (jobs.Definition, e
 		phpInput := phpAgentInput{SiteID: input.Site.ID, Version: input.PHPConfig.Version, Config: string(pool)}
 		steps = append(steps,
 			p.provisionAgentStep("php.ensure", input.Site.ID, "php.ensure_pool", phpInput),
-			p.provisionAgentStep("php.activate", input.Site.ID, "php.activate_pool", phpInput),
+			p.provisionResourceStep("php.activate", input.Site.ID, "php.activate_pool", phpInput,
+				"php_pool", "", "/etc/php/"+input.PHPConfig.Version+"/fpm/pool.d/tp_"+input.Site.ID[:16]+".conf"),
 		)
 	}
 	nginx, err := p.renderNginx(input.Site)
@@ -137,9 +140,9 @@ func (p *Provisioner) buildProvisionJob(raw json.RawMessage) (jobs.Definition, e
 		return jobs.Definition{}, err
 	}
 	steps = append(steps,
-		p.provisionAgentStep("nginx.activate", input.Site.ID, "nginx.validate_activate", nginxAgentInput{
+		p.provisionResourceStep("nginx.activate", input.Site.ID, "nginx.validate_activate", nginxAgentInput{
 			SiteID: input.Site.ID, Config: string(nginx), HealthHost: input.Site.PrimaryDomain, HealthPort: input.Site.HTTPPort,
-		}),
+		}, "nginx_config", "", "/etc/nginx/sites-enabled/tp-"+input.Site.ID+".conf"),
 		p.stateStep("site.active", input.Site.ID, StateActive, true),
 	)
 	return jobs.Definition{Kind: ProvisionJobKind, Input: append(json.RawMessage(nil), raw...), Steps: steps}, nil
@@ -155,10 +158,13 @@ func (p *Provisioner) buildSetEnabledJob(raw json.RawMessage) (jobs.Definition, 
 	}
 	var steps []jobs.Step
 	if !input.Enabled {
-		steps = []jobs.Step{
-			p.agentStep("nginx.disable", "nginx.disable", siteAgentInput{SiteID: input.Site.ID}),
-			p.stateStep("site.disabled", input.Site.ID, StateDisabled, false),
+		steps = append(steps, p.agentStep("nginx.disable", "nginx.disable", siteAgentInput{SiteID: input.Site.ID}))
+		if input.PHPConfig != nil {
+			steps = append(steps, p.agentStep("php.disable", "php.disable_pool", phpAgentInput{
+				SiteID: input.Site.ID, Version: input.PHPConfig.Version,
+			}))
 		}
+		steps = append(steps, p.stateStep("site.disabled", input.Site.ID, StateDisabled, false))
 	} else {
 		if input.PHPConfig != nil {
 			pool, err := panelruntime.RenderPool(input.Site.ID, *input.PHPConfig)
@@ -202,6 +208,23 @@ func (p *Provisioner) provisionAgentStep(key, siteID, operation string, input an
 			_ = p.markProvisionFailed(ctx, siteID)
 		}
 		return result, err
+	}
+	return step
+}
+
+func (p *Provisioner) provisionResourceStep(key, siteID, operation string, input any, resourceKind, externalID, path string) jobs.Step {
+	step := p.provisionAgentStep(key, siteID, operation, input)
+	run := step.Run
+	step.Run = func(ctx context.Context) (json.RawMessage, error) {
+		result, err := run(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := p.repository.recordManagedResource(ctx, resourceKind, externalID, path); err != nil {
+			_ = p.markProvisionFailed(ctx, siteID)
+			return nil, err
+		}
+		return result, nil
 	}
 	return step
 }

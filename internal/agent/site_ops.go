@@ -89,17 +89,9 @@ func ensureDirectories(_ context.Context, payload json.RawMessage, rootPath stri
 }
 
 func setDirectoryOwner(siteID, rootPath string) error {
-	account, err := user.Lookup("tp_" + siteID[:16])
+	uid, gid, err := directoryOwnerIDs(siteID, user.Lookup, user.LookupGroup)
 	if err != nil {
-		return fmt.Errorf("lookup site identity: %w", err)
-	}
-	uid, err := strconv.Atoi(account.Uid)
-	if err != nil {
-		return fmt.Errorf("parse site UID: %w", err)
-	}
-	gid, err := strconv.Atoi(account.Gid)
-	if err != nil {
-		return fmt.Errorf("parse site GID: %w", err)
+		return err
 	}
 	root, err := os.OpenRoot(rootPath)
 	if err != nil {
@@ -115,6 +107,26 @@ func setDirectoryOwner(siteID, rootPath string) error {
 		return fmt.Errorf("own public directory: %w", err)
 	}
 	return nil
+}
+
+func directoryOwnerIDs(siteID string, lookupUser func(string) (*user.User, error), lookupGroup func(string) (*user.Group, error)) (int, int, error) {
+	account, err := lookupUser("tp_" + siteID[:16])
+	if err != nil {
+		return 0, 0, fmt.Errorf("lookup site identity: %w", err)
+	}
+	uid, err := strconv.Atoi(account.Uid)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse site UID: %w", err)
+	}
+	nginx, err := lookupGroup("www-data")
+	if err != nil {
+		return 0, 0, fmt.Errorf("lookup Nginx group: %w", err)
+	}
+	gid, err := strconv.Atoi(nginx.Gid)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse Nginx GID: %w", err)
+	}
+	return uid, gid, nil
 }
 
 func ensureIdentity(ctx context.Context, payload json.RawMessage) (map[string]string, error) {
@@ -152,13 +164,27 @@ func activateNginx(ctx context.Context, input nginxActivateInput, env nginxEnvir
 	defer root.Close()
 	name := "tp-" + input.SiteID + ".conf"
 	temporary := "." + name + ".candidate"
-	old, readErr := root.ReadFile(name)
-	hadOld := readErr == nil
+	backup := "." + name + ".rollback"
+	old, readErr := root.ReadFile(backup)
+	hadBackup := readErr == nil
 	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-		return fmt.Errorf("read active nginx config: %w", readErr)
+		return fmt.Errorf("read Nginx rollback: %w", readErr)
+	}
+	hadOld := hadBackup && len(old) > 0
+	if !hadBackup {
+		old, readErr = root.ReadFile(name)
+		hadOld = readErr == nil
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			return fmt.Errorf("read active nginx config: %w", readErr)
+		}
 	}
 	if hadOld && !strings.HasPrefix(string(old), marker) {
 		return errors.New("refusing to replace an unmanaged nginx config")
+	}
+	if !hadBackup {
+		if err := root.WriteFile(backup, old, 0o600); err != nil {
+			return fmt.Errorf("write Nginx rollback: %w", err)
+		}
 	}
 	if err := root.WriteFile(temporary, []byte(input.Config), 0o640); err != nil {
 		return fmt.Errorf("write nginx candidate: %w", err)
@@ -167,29 +193,36 @@ func activateNginx(ctx context.Context, input nginxActivateInput, env nginxEnvir
 	if err := root.Rename(temporary, name); err != nil {
 		return fmt.Errorf("activate nginx candidate: %w", err)
 	}
-	restore := func() {
+	restore := func() error {
+		var restoreErr error
 		if hadOld {
-			_ = root.WriteFile(temporary, old, 0o640)
-			_ = root.Rename(temporary, name)
-		} else {
-			_ = root.Remove(name)
+			if err := root.WriteFile(temporary, old, 0o640); err != nil {
+				return fmt.Errorf("write Nginx rollback: %w", err)
+			}
+			if err := root.Rename(temporary, name); err != nil {
+				return fmt.Errorf("activate Nginx rollback: %w", err)
+			}
+		} else if err := root.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+			restoreErr = fmt.Errorf("remove failed Nginx config: %w", err)
 		}
+		if err := root.Remove(backup); err != nil && !errors.Is(err, os.ErrNotExist) {
+			restoreErr = errors.Join(restoreErr, fmt.Errorf("remove Nginx rollback: %w", err))
+		}
+		return restoreErr
 	}
 	if err := env.run(ctx, "/usr/sbin/nginx", "-t"); err != nil {
-		restore()
-		return fmt.Errorf("validate nginx: %w", err)
+		return errors.Join(fmt.Errorf("validate nginx: %w", err), restore())
 	}
 	if err := env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"); err != nil {
-		restore()
-		_ = env.run(ctx, "/usr/sbin/nginx", "-t")
-		_ = env.run(ctx, "/usr/bin/systemctl", "reload", "nginx")
-		return fmt.Errorf("reload nginx: %w", err)
+		return errors.Join(fmt.Errorf("reload nginx: %w", err), restore(),
+			env.run(ctx, "/usr/sbin/nginx", "-t"), env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"))
 	}
 	if err := env.health(ctx, host, input.HealthPort); err != nil {
-		restore()
-		_ = env.run(ctx, "/usr/sbin/nginx", "-t")
-		_ = env.run(ctx, "/usr/bin/systemctl", "reload", "nginx")
-		return fmt.Errorf("health-check nginx: %w", err)
+		return errors.Join(fmt.Errorf("health-check nginx: %w", err), restore(),
+			env.run(ctx, "/usr/sbin/nginx", "-t"), env.run(ctx, "/usr/bin/systemctl", "reload", "nginx"))
+	}
+	if err := root.Remove(backup); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove Nginx rollback: %w", err)
 	}
 	return nil
 }

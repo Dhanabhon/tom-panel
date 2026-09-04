@@ -174,6 +174,17 @@ func (r *Repository) SetState(ctx context.Context, id string, next State) error 
 	})
 }
 
+func (r *Repository) recordManagedResource(ctx context.Context, kind, externalID, path string) error {
+	if kind == "" || externalID == "" && path == "" {
+		return errors.New("managed resource identity is required")
+	}
+	return r.store.Tx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO managed_resources(kind, external_id, path, created_at)
+			VALUES (?, NULLIF(?, ''), NULLIF(?, ''), ?) ON CONFLICT DO NOTHING`, kind, externalID, path, r.now().UTC().Unix())
+		return err
+	})
+}
+
 func newID() (string, error) {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {

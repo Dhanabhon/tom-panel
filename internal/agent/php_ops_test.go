@@ -54,3 +54,19 @@ func TestEnsurePHPUsesVersionSpecificBinary(t *testing.T) {
 		t.Fatalf("binary = %q", name)
 	}
 }
+
+func TestDisablePHPPoolRefusesUnmanagedFile(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "tp_0123456789abcdef.conf"), []byte("administrator config"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	err := disablePHPPool(context.Background(), phpPoolInput{
+		SiteID: "0123456789abcdef0123456789abcdef", Version: "8.4",
+	}, root, func(context.Context, string, ...string) error {
+		t.Fatal("command ran for unmanaged pool")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("unmanaged PHP-FPM pool was removed")
+	}
+}

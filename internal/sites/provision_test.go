@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
+	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
 )
 
 type provisionAgent struct {
@@ -87,6 +88,15 @@ func TestProvisionRetryDoesNotDuplicateLinuxUser(t *testing.T) {
 	if got.State != StateActive {
 		t.Fatalf("state after retry = %q, want %q", got.State, StateActive)
 	}
+	var resources int
+	if err := repository.store.Tx(context.Background(), func(tx *sql.Tx) error {
+		return tx.QueryRow("SELECT count(*) FROM managed_resources").Scan(&resources)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if resources != 3 {
+		t.Fatalf("managed resources = %d, want identity, site root, and Nginx config", resources)
+	}
 }
 
 func TestDisableKeepsManagedResources(t *testing.T) {
@@ -132,6 +142,46 @@ func TestDisableKeepsManagedResources(t *testing.T) {
 	}
 	if domains != 2 || agent.count("nginx.disable") != 1 {
 		t.Fatalf("domains=%d nginx.disable calls=%d", domains, agent.count("nginx.disable"))
+	}
+}
+
+func TestDisablePHPSiteStopsPoolAndKeepsRuntimeConfig(t *testing.T) {
+	repository := openTestRepository(t)
+	site, err := repository.Create(context.Background(), CreateInput{
+		Kind: KindPHP, PrimaryDomain: "php.example.com", HTTPPort: 80, HTTPSPort: 443, PHPVersion: "8.4",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeService := panelruntime.NewService(repository.store)
+	if err := runtimeService.SaveConfig(context.Background(), site.ID, panelruntime.DefaultPHPConfig("8.4")); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.SetState(context.Background(), site.ID, StateActive); err != nil {
+		t.Fatal(err)
+	}
+	agent := &provisionAgent{calls: make(map[string]int)}
+	provisioner := NewProvisioner(repository, runtimeService, nil, nil)
+	provisioner.agentCall = agent.call
+	manager := jobs.NewManager(repository.store)
+	if err := provisioner.Register(manager); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := provisioner.BuildSetEnabledJob(site.ID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Enqueue(context.Background(), definition); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.RunNext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if agent.count("php.disable_pool") != 1 {
+		t.Fatalf("php.disable_pool calls = %d, want 1", agent.count("php.disable_pool"))
+	}
+	if _, err := runtimeService.Config(context.Background(), site.ID); err != nil {
+		t.Fatalf("runtime config was removed: %v", err)
 	}
 }
 

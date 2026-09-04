@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -32,6 +33,28 @@ func TestEnsureDirectoriesDerivesConfinedPaths(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Fatal("public root is not a directory")
+	}
+}
+
+func TestDirectoryOwnerUsesNginxGroup(t *testing.T) {
+	uid, gid, err := directoryOwnerIDs("0123456789abcdef0123456789abcdef",
+		func(name string) (*user.User, error) {
+			if name != "tp_0123456789abcdef" {
+				t.Fatalf("user lookup = %q", name)
+			}
+			return &user.User{Uid: "1001", Gid: "1001"}, nil
+		},
+		func(name string) (*user.Group, error) {
+			if name != "www-data" {
+				t.Fatalf("group lookup = %q", name)
+			}
+			return &user.Group{Gid: "33"}, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uid != 1001 || gid != 33 {
+		t.Fatalf("ownership = %d:%d, want 1001:33", uid, gid)
 	}
 }
 
@@ -88,6 +111,35 @@ func TestActivateNginxRefusesUnmanagedExistingConfig(t *testing.T) {
 	}, env)
 	if err == nil {
 		t.Fatal("unmanaged active config was overwritten")
+	}
+}
+
+func TestActivateNginxRecoversDurableRollbackAfterInterruption(t *testing.T) {
+	const marker = "# Managed by TomPanel: 0123456789abcdef0123456789abcdef\n"
+	root := t.TempDir()
+	name := "tp-0123456789abcdef0123456789abcdef.conf"
+	if err := os.WriteFile(filepath.Join(root, name), []byte(marker+"interrupted"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "."+name+".rollback"), []byte(marker+"last-good"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	env := nginxEnvironment{root: root,
+		run:    func(context.Context, string, ...string) error { return errors.New("invalid candidate") },
+		health: func(context.Context, string, int) error { return nil },
+	}
+	if err := activateNginx(context.Background(), nginxActivateInput{
+		SiteID: "0123456789abcdef0123456789abcdef", Config: marker + "still-invalid",
+		HealthHost: "site.example.com", HealthPort: 80,
+	}, env); err == nil {
+		t.Fatal("validation failure was ignored")
+	}
+	got, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != marker+"last-good" {
+		t.Fatalf("active config = %q, want durable rollback", got)
 	}
 }
 

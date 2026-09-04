@@ -81,6 +81,12 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, activatePHPPool(ctx, input, phpPoolRoot(input.Version), runCommand))
+	case "php.disable_pool":
+		var input phpPoolInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, disablePHPPool(ctx, input, phpPoolRoot(input.Version), runCommand))
 	case "php.install_extension":
 		var input phpExtensionInput
 		if err := decodeStrict(request.Payload, &input); err != nil {

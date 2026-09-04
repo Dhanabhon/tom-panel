@@ -69,7 +69,6 @@ type certificateIssueInput struct {
 	Challenge Challenge `json:"challenge"`
 	Email     string    `json:"email"`
 	APIToken  string    `json:"api_token,omitempty"`
-	ZoneID    string    `json:"zone_id,omitempty"`
 }
 
 type certificateIssueResult struct {
@@ -184,11 +183,22 @@ func (s *Service) IssueCertificate(ctx context.Context, request CertificateReque
 	}
 	input := certificateIssueInput{SiteID: request.SiteID, Hostnames: hostnames, Challenge: request.Challenge, Email: request.Email}
 	if request.Challenge == ChallengeCloudflare {
-		zone, token, err := s.cloudflareCredentials(ctx)
+		_, token, err := s.cloudflareCredentials(ctx)
 		if err != nil {
 			return Certificate{}, err
 		}
-		input.ZoneID, input.APIToken = zone, token
+		input.APIToken = token
+	}
+	id, err := domainID()
+	if err != nil {
+		return Certificate{}, err
+	}
+	certificate := Certificate{
+		ID: id, SiteID: request.SiteID, Hostnames: hostnames, Challenge: request.Challenge,
+		Email: request.Email, State: CertificatePending,
+	}
+	if err := s.saveCertificate(ctx, certificate); err != nil {
+		return Certificate{}, err
 	}
 	var issued certificateIssueResult
 	if err := s.agentCall(ctx, "certificate.issue", input, &issued); err != nil {
@@ -200,15 +210,9 @@ func (s *Service) IssueCertificate(ctx context.Context, request CertificateReque
 	}, &active); err != nil {
 		return Certificate{}, err
 	}
-	id, err := domainID()
-	if err != nil {
-		return Certificate{}, err
-	}
-	certificate := Certificate{
-		ID: id, SiteID: request.SiteID, Hostnames: hostnames, Challenge: request.Challenge, Email: request.Email,
-		CertificatePath: active.CertificatePath, PrivateKeyPath: active.PrivateKeyPath,
-		State: CertificateActive, NotBefore: time.Unix(issued.NotBefore, 0).UTC(), NotAfter: time.Unix(issued.NotAfter, 0).UTC(),
-	}
+	certificate.CertificatePath, certificate.PrivateKeyPath = active.CertificatePath, active.PrivateKeyPath
+	certificate.State = CertificateActive
+	certificate.NotBefore, certificate.NotAfter = time.Unix(issued.NotBefore, 0).UTC(), time.Unix(issued.NotAfter, 0).UTC()
 	if err := s.saveCertificate(ctx, certificate); err != nil {
 		return Certificate{}, err
 	}
@@ -252,11 +256,11 @@ func (s *Service) RenewDue(ctx context.Context, within time.Duration) error {
 func (s *Service) renew(ctx context.Context, certificate Certificate) (Certificate, error) {
 	input := certificateIssueInput{SiteID: certificate.SiteID, Hostnames: certificate.Hostnames, Challenge: certificate.Challenge, Email: certificate.Email}
 	if certificate.Challenge == ChallengeCloudflare {
-		zone, token, err := s.cloudflareCredentials(ctx)
+		_, token, err := s.cloudflareCredentials(ctx)
 		if err != nil {
 			return Certificate{}, err
 		}
-		input.ZoneID, input.APIToken = zone, token
+		input.APIToken = token
 	}
 	var issued certificateIssueResult
 	if err := s.agentCall(ctx, "certificate.issue", input, &issued); err != nil {
@@ -291,7 +295,7 @@ func (s *Service) saveCertificate(ctx context.Context, certificate Certificate) 
 	}
 	now := s.now().UTC().Unix()
 	return s.store.Tx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO certificates
+		if _, err := tx.ExecContext(ctx, `INSERT INTO certificates
 			(id, site_id, hostname_set, challenge, email, certificate_path, private_key_path, state,
 			 not_before, not_after, renewal_attempts, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -301,8 +305,15 @@ func (s *Service) saveCertificate(ctx context.Context, certificate Certificate) 
 			 next_renewal_attempt=NULL, updated_at=excluded.updated_at`,
 			certificate.ID, certificate.SiteID, string(hostnames), certificate.Challenge, certificate.Email,
 			certificate.CertificatePath, certificate.PrivateKeyPath, certificate.State,
-			certificate.NotBefore.Unix(), certificate.NotAfter.Unix(), certificate.RenewalAttempts, now, now)
-		return err
+			certificate.NotBefore.Unix(), certificate.NotAfter.Unix(), certificate.RenewalAttempts, now, now); err != nil {
+			return err
+		}
+		if certificate.State == CertificateActive && certificate.CertificatePath != "" {
+			_, err := tx.ExecContext(ctx, `INSERT INTO managed_resources(kind, external_id, path, created_at)
+				VALUES ('certificate', ?, ?, ?) ON CONFLICT DO NOTHING`, certificate.ID, certificate.CertificatePath, now)
+			return err
+		}
+		return nil
 	})
 }
 
