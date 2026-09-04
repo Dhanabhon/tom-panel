@@ -57,6 +57,14 @@ go test ./...
 go build ./cmd/...
 ```
 
+Run the repeatable Ubuntu 24.04 AMD64 verification container before testing on a VPS:
+
+```bash
+./scripts/test-docker.sh
+```
+
+This checks the Go test suite and race detector, static analysis, Linux builds, JavaScript syntax, and the Ubuntu package paths/configuration for Nginx and PHP-FPM. It does not replace VPS acceptance for systemd, UFW, reboot recovery, public networking, or ACME certificates.
+
 Example development configuration:
 
 ```toml
@@ -98,7 +106,7 @@ tompanel -config /etc/tompanel/config.toml setup-url
 
 ## Project status
 
-Installation scripts, systemd units, Nginx configuration, site provisioning, and production acceptance testing are still pending. Review and test the code before using it on a server that contains important data.
+Installation scripts, systemd units, complete HTTPS provisioning, and production acceptance testing are still pending. Review and test the code before using it on a server that contains important data.
 
 ## License
 

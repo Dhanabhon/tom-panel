@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.26-bookworm AS go-toolchain
+
+FROM ubuntu:24.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH=/usr/local/go/bin:$PATH
+
+COPY --from=go-toolchain /usr/local/go /usr/local/go
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev nginx nodejs php8.3-fpm \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+FROM base AS verify
+
+COPY . .
+
+RUN go test ./...
+RUN go test -race ./internal/agent ./internal/sites ./internal/domains ./internal/runtime ./internal/web
+RUN go vet ./...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/tompanel ./cmd/tompanel \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/tompanel-agent ./cmd/tompanel-agent \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/tompaneld ./cmd/tompaneld
+RUN /usr/sbin/nginx -t \
+    && /usr/sbin/php-fpm8.3 -t \
+    && node --check web/static/app.js \
+    && node --check web/static/site-create.js

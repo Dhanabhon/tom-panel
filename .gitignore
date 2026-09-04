@@ -5,6 +5,7 @@
 /coverage/
 *.out
 *.test
+!Dockerfile.test
 
 # Local runtime data and secrets
 /.env

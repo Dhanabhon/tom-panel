@@ -1,0 +1,11 @@
+.git
+.worktrees
+.claude
+.codex
+.agents
+.superpowers
+docs
+*.db
+*.key
+Dockerfile*
+!Dockerfile.test
