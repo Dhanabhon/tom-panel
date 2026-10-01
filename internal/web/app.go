@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
+	"github.com/Dhanabhon/tom-panel/internal/apps"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/config"
 	"github.com/Dhanabhon/tom-panel/internal/databases"
@@ -89,6 +90,16 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	wordPressProvisioner := apps.NewWordPressProvisioner(database, repository, agent.Call)
+	wordPressProvisioner.SetDatabaseProvider(databaseService)
+	databaseService.SetAppConfigUpdater(wordPressProvisioner.UpdateDBConfig)
+	if err := wordPressProvisioner.Register(manager); err != nil {
+		return nil, err
+	}
+	wordPressRoutes, err := NewWordPressHandlers(service, repository, wordPressProvisioner, databaseService, manager, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -130,6 +141,14 @@ func New(cfg config.Config) (*App, error) {
 		"POST /sites/{siteID}/databases/phpmyadmin/disable",
 	} {
 		mux.Handle(pattern, databaseRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"GET /sites/{siteID}/wordpress",
+		"POST /sites/{siteID}/wordpress/install", "POST /sites/{siteID}/wordpress/update",
+		"POST /sites/{siteID}/wordpress/policy", "POST /sites/{siteID}/wordpress/cron",
+		"POST /sites/{siteID}/wordpress/cache/clear", "POST /sites/{siteID}/wordpress/redis",
+	} {
+		mux.Handle(pattern, wordPressRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())

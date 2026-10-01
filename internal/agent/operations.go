@@ -187,6 +187,54 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, disablePHPMyAdmin(ctx, input, defaultPHPMyAdminEnvironment()))
+	case "wordpress.ensure_cli":
+		var input wordpressEnsureCLIInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, ensureWPCLI(ctx, input, defaultWordPressEnvironment()))
+	case "wordpress.install":
+		var input wordpressInstallInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, installWordPress(ctx, input, defaultWordPressEnvironment()))
+	case "wordpress.update_core":
+		var input wordpressUpdateInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, updateWordPress(ctx, input, defaultWordPressEnvironment()))
+	case "wordpress.configure_cron":
+		var input wordpressCronInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, configureWordPressCron(ctx, input, defaultWordPressEnvironment()))
+	case "wordpress.clear_cache":
+		var input siteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, clearWordPressCache(ctx, input, siteRootPath))
+	case "wordpress.update_db_config":
+		var input wordpressDBConfigInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, updateWordPressDBConfig(ctx, input, siteRootPath))
+	case "redis.ensure_site_acl":
+		var input redisACLInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, ensureRedisACL(ctx, input, defaultRedisEnvironment()))
+	case "redis.remove_site_acl":
+		var input redisACLInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, removeRedisACL(ctx, input, defaultRedisEnvironment()))
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}

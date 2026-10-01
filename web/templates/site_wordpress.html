@@ -1,0 +1,95 @@
+{{define "site_wordpress"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Applications</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Managed WordPress</p><h1>WordPress</h1><p>Guided install, independent update channels, cron, and cache controls.</p></div></header>
+      {{if .JobID}}<p class="notice"><strong>Server task queued</strong><span>Follow live progress from the Dashboard.</span><a href="/?job={{.JobID}}">View task</a></p>{{end}}
+      {{if .Credentials}}<p class="notice" data-notice>
+        <strong>Credentials</strong>
+        {{if .Credentials.AdminPassword}}<span>WordPress admin <span class="mono">{{.Credentials.AdminUser}}</span> / <span class="mono" data-one-time-password>{{.Credentials.AdminPassword}}</span></span>{{end}}
+        {{if .Credentials.DBPassword}}<span>Database <span class="mono">{{.Credentials.Database}}</span> user <span class="mono">{{.Credentials.DBUser}}</span> / <span class="mono" data-one-time-password>{{.Credentials.DBPassword}}</span></span>{{end}}
+        <span>{{.Notice}}</span>
+      </p>{{else if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+
+      {{if .Installation}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Installation</h2>
+          <p>State <strong>{{.Installation.State}}</strong>{{if .Installation.Version}} · WordPress {{.Installation.Version}}{{end}} · installed {{.Installation.CreatedAt.Format "2006-01-02"}}.</p>
+          <div class="form-actions">
+            <form class="inline" method="post" action="/sites/{{.Site.ID}}/wordpress/update">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <button class="btn" type="submit">Check updates</button>
+            </form>
+            <form class="inline" method="post" action="/sites/{{.Site.ID}}/wordpress/cache/clear">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <button class="btn" type="submit">Clear cache</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Update policy</h2>
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/wordpress/policy">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="check-row"><input type="checkbox" name="minor_core"{{if .Installation.Policy.MinorCore}} checked{{end}}><span><strong>Security and minor core updates</strong><small>Recommended default.</small></span></label>
+            <label class="check-row"><input type="checkbox" name="major_core"{{if .Installation.Policy.MajorCore}} checked{{end}}><span><strong>Major core updates</strong><small>Applied independently after backup.</small></span></label>
+            <label class="check-row"><input type="checkbox" name="plugins"{{if .Installation.Policy.Plugins}} checked{{end}}><span><strong>Plugin updates</strong></span></label>
+            <label class="check-row"><input type="checkbox" name="themes"{{if .Installation.Policy.Themes}} checked{{end}}><span><strong>Theme updates</strong></span></label>
+            <div class="form-actions"><button class="btn" type="submit">Save policy</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Scheduled tasks</h2>
+          <form method="post" action="/sites/{{.Site.ID}}/wordpress/cron">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="check-row"><input type="checkbox" name="enabled"{{if .Installation.SystemCron}} checked{{end}}><span><strong>Run WP-Cron from the system scheduler</strong><small>Disables request-driven cron and uses a managed system entry every five minutes.</small></span></label>
+            <div class="form-actions"><button class="btn" type="submit">Apply</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Object cache</h2>
+          <form method="post" action="/sites/{{.Site.ID}}/wordpress/redis">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="check-row"><input type="checkbox" name="enabled"{{if .Installation.RedisCache}} checked{{end}}><span><strong>Redis object cache with a site-scoped ACL</strong><small>Unique user, key prefix, and password. TomPanel never issues FLUSHALL.</small></span></label>
+            <div class="form-actions"><button class="btn" type="submit">Apply</button><small>Enabling or rotating requires recent re-authentication and shows the password once.</small></div>
+          </form>
+        </div>
+      </section>
+      {{else if eq .SiteKind "php"}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Install WordPress</h2>
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/wordpress/install">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-grid">
+              <label class="field">Administrator username<input name="admin_user" type="text" value="tom" required></label>
+              <label class="field">Administrator email<input name="admin_email" type="email" placeholder="tom@example.com" required></label>
+            </div>
+            <label class="field">Site title<input name="title" type="text" placeholder="My site" required></label>
+            <div class="form-actions"><button class="btn primary" type="submit">Install WordPress</button><small>A dedicated database and administrator password are generated automatically. Requires recent re-authentication.</small></div>
+          </form>
+        </div>
+      </section>
+      {{else}}
+      <section class="panel"><div class="panel-body"><p class="empty">WordPress installs are available for PHP sites. This site is {{.SiteKind}}.</p></div></section>
+      {{end}}
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

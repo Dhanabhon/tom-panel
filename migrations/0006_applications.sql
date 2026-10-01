@@ -1,0 +1,21 @@
+CREATE TABLE app_installations (
+    id TEXT PRIMARY KEY CHECK (length(id) = 32),
+    site_id TEXT NOT NULL UNIQUE REFERENCES sites(id) ON DELETE CASCADE,
+    app TEXT NOT NULL CHECK (app IN ('wordpress')),
+    state TEXT NOT NULL CHECK (state IN ('pending', 'installing', 'active', 'failed')),
+    version TEXT,
+    database_suffix TEXT,
+    admin_username TEXT NOT NULL DEFAULT '',
+    admin_email TEXT NOT NULL DEFAULT '',
+    admin_secret BLOB,
+    db_secret BLOB,
+    policy_minor INTEGER NOT NULL DEFAULT 1 CHECK (policy_minor IN (0, 1)),
+    policy_major INTEGER NOT NULL DEFAULT 0 CHECK (policy_major IN (0, 1)),
+    policy_plugins INTEGER NOT NULL DEFAULT 0 CHECK (policy_plugins IN (0, 1)),
+    policy_themes INTEGER NOT NULL DEFAULT 0 CHECK (policy_themes IN (0, 1)),
+    system_cron INTEGER NOT NULL DEFAULT 0 CHECK (system_cron IN (0, 1)),
+    page_cache INTEGER NOT NULL DEFAULT 0 CHECK (page_cache IN (0, 1)),
+    redis_cache INTEGER NOT NULL DEFAULT 0 CHECK (redis_cache IN (0, 1)),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
