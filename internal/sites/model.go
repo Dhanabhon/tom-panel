@@ -17,6 +17,8 @@ const (
 	StateActive       State = "active"
 	StateFailed       State = "failed"
 	StateDisabled     State = "disabled"
+	StateDeleting     State = "deleting"
+	StateQuarantined  State = "quarantined"
 )
 
 type CreateInput struct {

@@ -58,10 +58,11 @@ func ValidateStateTransition(from, to State) error {
 		return nil
 	}
 	allowed := map[State]map[State]bool{
-		StateProvisioning: {StateActive: true, StateFailed: true, StateDisabled: true},
-		StateActive:       {StateFailed: true, StateDisabled: true},
-		StateFailed:       {StateProvisioning: true, StateDisabled: true},
-		StateDisabled:     {StateActive: true, StateProvisioning: true, StateFailed: true},
+		StateProvisioning: {StateActive: true, StateFailed: true, StateDisabled: true, StateDeleting: true},
+		StateActive:       {StateFailed: true, StateDisabled: true, StateDeleting: true},
+		StateFailed:       {StateProvisioning: true, StateDisabled: true, StateDeleting: true},
+		StateDisabled:     {StateActive: true, StateProvisioning: true, StateFailed: true, StateDeleting: true},
+		StateDeleting:     {StateQuarantined: true, StateDisabled: true},
 	}
 	if !allowed[from][to] {
 		return fmt.Errorf("%w: %s to %s", ErrInvalidStateTransition, from, to)

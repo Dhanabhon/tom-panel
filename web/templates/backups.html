@@ -1,0 +1,81 @@
+{{define "backups"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Backups</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "site-tabs" .}}
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Recovery</p><h1>Backups</h1><p>Manual and scheduled archives with guarded restore and a seven-day deletion quarantine.</p></div></header>
+      {{if .JobID}}<p class="notice"><strong>Server task queued</strong><span>Follow live progress from the Dashboard.</span><a href="/?job={{.JobID}}">View task</a></p>{{end}}
+      {{if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Manual backup</h2>
+          <form method="post" action="/sites/{{.Site.ID}}/backups/create">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-actions"><button class="btn primary" type="submit">Back up now</button><small>Captures files and every site database. Manual backups are never removed by retention.</small></div>
+          </form>
+        </div>
+      </section>
+
+      {{if .Backups}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>History</h2>
+          <table class="table">
+            <thead><tr><th>Kind</th><th>Storage</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>
+              {{range .Backups}}
+              <tr>
+                <td>{{.Kind}}{{if .Protected}} · protected{{end}}</td>
+                <td>{{.Storage}}</td>
+                <td>{{.SizeBytes}} B</td>
+                <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+                <td class="row-actions">
+                  <form class="inline" method="post" action="/sites/{{$.Site.ID}}/backups/restore">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="backup" type="hidden" value="{{.ID}}">
+                    <label class="check-row inline"><input type="checkbox" name="confirmed" required><span>Confirm</span></label>
+                    <button class="link" type="submit">Restore</button>
+                  </form>
+                  <form class="inline" method="post" action="/sites/{{$.Site.ID}}/backups/delete">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="backup" type="hidden" value="{{.ID}}">
+                    {{if .Protected}}<label class="check-row inline"><input type="checkbox" name="force"><span>Override</span></label>{{end}}
+                    <button class="link danger" type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+          <p class="hint">Scheduled backups keep the seven newest copies. Restores capture a pre-restore backup first and roll back automatically on failure.</p>
+        </div>
+      </section>
+      {{else}}
+      <section class="panel"><div class="panel-body"><p class="empty">No backups yet.</p></div></section>
+      {{end}}
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Danger zone</h2>
+          <p>Deleting a site takes a final backup, disables TomPanel-owned routes and workers, optionally releases owned DNS records, drops site databases, and moves all data into a seven-day quarantine.</p>
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/delete">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="field">Type <strong class="mono">{{.Site.PrimaryDomain}}</strong> to confirm<input name="confirm_name" type="text" class="mono" autocomplete="off" required></label>
+            <label class="check-row"><input type="radio" name="release_dns" value="on" required><span><strong>Release TomPanel-owned DNS records</strong><small>Manual and foreign records are never touched.</small></span></label>
+            <label class="check-row"><input type="radio" name="keep_dns" value="on"><span><strong>Keep DNS records</strong><small>You will manage them yourself.</small></span></label>
+            <div class="form-actions"><button class="btn danger" type="submit" data-confirm="Delete this site and quarantine its data for seven days?">Delete site</button><small>Requires recent re-authentication.</small></div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

@@ -35,7 +35,7 @@
   <a class="tab{{if eq .CurrentTab "runtime"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/runtime">Runtime</a>
   <a class="tab{{if eq .CurrentTab "databases"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/databases">Databases</a>
   <a class="tab{{if eq .CurrentTab "applications"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/applications">Applications</a>
-  <span class="tab disabled" aria-disabled="true" title="Available in a later release">Backups</span>
+  <a class="tab{{if eq .CurrentTab "backups"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/backups">Backups</a>
   <span class="tab disabled" aria-disabled="true" title="Available in a later release">Logs</span>
 </nav>
 {{end}}

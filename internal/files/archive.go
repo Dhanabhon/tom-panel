@@ -122,6 +122,39 @@ func archiveEntryName(name string, limits Limits) (string, error) {
 	return cleaned, nil
 }
 
+// CleanArchiveSources validates archive source paths against the limits.
+func CleanArchiveSources(sources []string, limits Limits) ([]string, error) {
+	if len(sources) == 0 || len(sources) > limits.MaxArchiveFiles {
+		return nil, ErrArchiveTooLarge
+	}
+	cleaned := make([]string, 0, len(sources))
+	for _, source := range sources {
+		clean, err := validateRelative(source, limits)
+		if err != nil {
+			return nil, ErrUnsafePath
+		}
+		if isTrashPath(clean) || isTempPath(clean) {
+			return nil, ErrUnsafePath
+		}
+		cleaned = append(cleaned, clean)
+	}
+	return cleaned, nil
+}
+
+// ArchiveTo streams a tar.gz of the selected paths into an external writer
+// so callers can direct the body outside the archive root.
+func ArchiveTo(root *os.Root, sources []string, output io.Writer, limits Limits) error {
+	cleaned, err := CleanArchiveSources(sources, limits)
+	if err != nil {
+		return err
+	}
+	entries, err := collectArchiveEntries(root, cleaned, limits)
+	if err != nil {
+		return err
+	}
+	return writeArchive(root, output, entries)
+}
+
 // Archive writes a tar.gz of the selected paths into destination inside root.
 func Archive(root *os.Root, sources []string, destination string, limits Limits) error {
 	if len(sources) == 0 || len(sources) > limits.MaxArchiveFiles {

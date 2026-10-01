@@ -296,6 +296,84 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, ensureLaravelWorkers(ctx, input, defaultLaravelEnvironment()))
+	case "backup.disk_guard":
+		var input backupSiteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := diskGuardBackup(ctx, input)
+		return operationResult(result, err)
+	case "backup.archive":
+		var input backupSiteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := archiveBackupSite(ctx, input, defaultBackupEnvironment())
+		return operationResult(result, err)
+	case "backup.database_dump":
+		var input backupDumpInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := dumpBackupDatabase(ctx, input)
+		return operationResult(result, err)
+	case "backup.upload":
+		var input backupUploadInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := uploadBackup(ctx, input, defaultBackupEnvironment())
+		return operationResult(result, err)
+	case "backup.verify":
+		var input backupPathInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := verifyBackupBody(ctx, input)
+		return operationResult(result, err)
+	case "backup.restore_files":
+		var input backupPathInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, restoreBackupFiles(ctx, input))
+	case "backup.restore_database":
+		var input backupRestoreDatabaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, restoreBackupDatabase(ctx, input))
+	case "backup.validate_restore":
+		var input backupSiteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, validateBackupRestore(ctx, input))
+	case "backup.activate_restore":
+		var input backupSiteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, activateBackupRestore(ctx, input))
+	case "site.quarantine":
+		var input siteQuarantineInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := quarantineSite(ctx, input, quarantineRootPath)
+		return operationResult(result, err)
+	case "site.purge_quarantine":
+		var input sitePurgeInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, purgeQuarantinedSite(ctx, input, quarantineRootPath))
+	case "backup.delete_local":
+		var input backupPathInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, deleteBackupBody(ctx, input))
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}

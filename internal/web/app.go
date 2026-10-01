@@ -12,6 +12,7 @@ import (
 
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 	"github.com/Dhanabhon/tom-panel/internal/apps"
+	"github.com/Dhanabhon/tom-panel/internal/backups"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/config"
 	"github.com/Dhanabhon/tom-panel/internal/databases"
@@ -110,6 +111,19 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	backupService := backups.NewService(database, agent.Call)
+	deleteProvisioner := sites.NewDeleteProvisioner(database, repository, agent.Call, domainService)
+	deleteProvisioner.SetBackupFinalizer(func(ctx context.Context, siteID string) error {
+		_, _, err := backupService.Create(ctx, siteID, string(backups.KindFinal))
+		return err
+	})
+	if err := deleteProvisioner.Register(manager); err != nil {
+		return nil, err
+	}
+	backupRoutes, err := NewBackupHandlers(service, repository, backupService, deleteProvisioner, manager, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -167,6 +181,13 @@ func New(cfg config.Config) (*App, error) {
 		"POST /sites/{siteID}/laravel/workers",
 	} {
 		mux.Handle(pattern, laravelRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"GET /sites/{siteID}/backups", "POST /sites/{siteID}/backups/create",
+		"POST /sites/{siteID}/backups/restore", "POST /sites/{siteID}/backups/delete",
+		"POST /sites/{siteID}/delete",
+	} {
+		mux.Handle(pattern, backupRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
