@@ -283,7 +283,7 @@ func TestRemoteUploadSendsEncryptedSettingsOnly(t *testing.T) {
 	service.SetRemoteProvider(func(context.Context) (RemoteSettings, bool) {
 		return RemoteSettings{
 			Bucket: "bucket", Region: "auto", AccessKeyID: "AKIA-test", SecretKey: "secret-key",
-			AgeRecipient: "age1-test-recipient", Prefix: "tompanel",
+			AgeRecipient: "age1testrecipient0000000000", Prefix: "tompanel",
 		}, true
 	})
 	backup, _, err := service.Create(context.Background(), backupSiteID, string(KindScheduled))

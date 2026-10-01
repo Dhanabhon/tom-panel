@@ -403,6 +403,19 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 		}
 		result, err := readLog(ctx, input)
 		return operationResult(result, err)
+	case "endpoint.activate":
+		var input endpointActivateInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, activatePanelEndpoint(ctx, input, defaultNginxEnvironment()))
+	case "integration.test_s3":
+		var input integrationTestS3Input
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := testS3Integration(ctx, input)
+		return operationResult(result, err)
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}

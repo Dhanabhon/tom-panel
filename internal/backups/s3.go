@@ -20,7 +20,7 @@ type RemoteSettings struct {
 func (r RemoteSettings) Valid() bool {
 	return r.Bucket != "" && r.AccessKeyID != "" && r.SecretKey != "" &&
 		(r.Endpoint == "" || strings.HasPrefix(r.Endpoint, "https://")) &&
-		r.AgeRecipient != ""
+		strings.HasPrefix(r.AgeRecipient, "age1") && len(r.AgeRecipient) >= 20
 }
 
 // ObjectKey derives the deterministic remote key of one backup.

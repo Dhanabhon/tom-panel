@@ -18,6 +18,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/databases"
 	"github.com/Dhanabhon/tom-panel/internal/domains"
 	"github.com/Dhanabhon/tom-panel/internal/files"
+	"github.com/Dhanabhon/tom-panel/internal/integrations"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	"github.com/Dhanabhon/tom-panel/internal/operations"
 	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
@@ -131,6 +132,22 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	integrationService := integrations.NewService(database, domainService, agent.Call)
+	backupService.SetRemoteProvider(func(ctx context.Context) (backups.RemoteSettings, bool) {
+		settings, ok, err := integrationService.S3(ctx)
+		if err != nil {
+			return backups.RemoteSettings{}, false
+		}
+		return settings, ok
+	})
+	endpointChanger := operations.NewEndpointChanger(database, agent.Call)
+	if err := endpointChanger.Register(manager); err != nil {
+		return nil, err
+	}
+	settingsRoutes, err := NewSettingsHandlers(service, integrationService, endpointChanger, manager, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -201,6 +218,13 @@ func New(cfg config.Config) (*App, error) {
 		"GET /activity", "GET /system", "GET /sites/{siteID}/logs",
 	} {
 		mux.Handle(pattern, operationsRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"GET /settings", "POST /settings/cloudflare", "POST /settings/s3", "POST /settings/smtp",
+		"POST /settings/endpoint", "POST /settings/cloudflare/test",
+		"POST /settings/s3/test", "POST /settings/smtp/test",
+	} {
+		mux.Handle(pattern, settingsRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())

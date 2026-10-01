@@ -1,0 +1,116 @@
+{{define "settings"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Server / Settings</span><strong class="mono">{{.ServerName}}</strong></div></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Integrations &amp; access</p><h1>Settings</h1><p>Provider secrets are encrypted at rest and never displayed again after saving.</p></div></header>
+      {{if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Cloudflare</h2>
+          <p>Status: {{if .CloudflareConfigured}}<strong>configured</strong>{{else}}not configured{{end}}</p>
+          <form class="form-stack" method="post" action="/settings/cloudflare">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-grid">
+              <label class="field">Zone ID<input name="zone_id" type="text" class="mono" placeholder="023e105f4ecef8ad9ca31a8372d0c353" required></label>
+              <label class="field">API token<input name="api_token" type="password" autocomplete="new-password" required></label>
+            </div>
+            <div class="form-actions"><button class="btn" type="submit">Save</button><small>Requires recent re-authentication.</small></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Object storage (S3 / R2)</h2>
+          <p>Status: {{if .S3Configured}}<strong>configured</strong>{{else}}not configured{{end}} — backups are age-encrypted before upload.</p>
+          <form class="form-stack" method="post" action="/settings/s3">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-grid">
+              <label class="field">Endpoint<input name="endpoint" type="url" placeholder="https://account.r2.cloudflarestorage.com"></label>
+              <label class="field">Region<input name="region" type="text" value="auto"></label>
+            </div>
+            <div class="form-grid">
+              <label class="field">Bucket<input name="bucket" type="text" required></label>
+              <label class="field">Key prefix<input name="prefix" type="text" placeholder="tompanel"></label>
+            </div>
+            <label class="field">age recipient (public key)<input name="age_recipient" type="text" class="mono" placeholder="age1..." required></label>
+            <div class="form-grid">
+              <label class="field">Access key ID<input name="access_key" type="text" autocomplete="off" required></label>
+              <label class="field">Secret access key<input name="secret_key" type="password" autocomplete="new-password" required></label>
+            </div>
+            <div class="form-actions">
+              <button class="btn" type="submit">Save</button>
+            </div>
+          </form>
+          <form method="post" action="/settings/s3/test">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-actions"><button class="btn" type="submit">Test object storage</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Email (SMTP)</h2>
+          <p>Status: {{if .SMTPConfigured}}<strong>configured</strong>{{else}}not configured{{end}} — used for failed job, security, and recovery alerts.</p>
+          <form class="form-stack" method="post" action="/settings/smtp">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-grid">
+              <label class="field">Host<input name="host" type="text" placeholder="smtp.example.com" required></label>
+              <label class="field">Port<input name="port" type="number" min="1" max="65535" value="587" required></label>
+            </div>
+            <div class="form-grid">
+              <label class="field">Username<input name="username" type="text" autocomplete="off"></label>
+              <label class="field">Password<input name="password" type="password" autocomplete="new-password"></label>
+            </div>
+            <label class="field">From address<input name="from" type="email" placeholder="tompanel@example.com" required></label>
+            <div class="form-actions"><button class="btn" type="submit">Save</button></div>
+          </form>
+          <form method="post" action="/settings/smtp/test">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-actions"><button class="btn" type="submit">Test SMTP</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Panel endpoint</h2>
+          <p>Current mode: <strong>{{.Endpoint.Mode}}</strong>{{if .Endpoint.Hostname}} on <span class="mono">{{.Endpoint.Hostname}}:{{.Endpoint.Port}}</span>{{end}}.</p>
+          <form class="form-stack" method="post" action="/settings/endpoint">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="field">Mode<select name="mode">
+              <option value="loopback">Private (SSH tunnel, recommended)</option>
+              <option value="public">Public HTTPS</option>
+            </select></label>
+            <div class="form-grid">
+              <label class="field">Hostname<input name="hostname" type="text" placeholder="panel.example.com"></label>
+              <label class="field">Port<input name="port" type="number" min="1" max="65535" placeholder="443"></label>
+            </div>
+            <label class="check-row"><input type="checkbox" name="cloudflare_proxy"><span><strong>Behind Cloudflare proxy</strong><small>Limited to ports 443 and 8443.</small></span></label>
+            <div class="form-actions"><button class="btn" type="submit">Queue endpoint change</button><small>The current route stays live until the new one passes its health check.</small></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Security</h2>
+          <p>Administrator username, password, and TOTP changes are server-only operations. Use the recovery CLI on the host:</p>
+          <pre class="mono">tompanel -config /etc/tompanel/config.toml admin reset-password
+tompanel -config /etc/tompanel/config.toml admin set-username
+tompanel -config /etc/tompanel/config.toml admin reset-totp</pre>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}
