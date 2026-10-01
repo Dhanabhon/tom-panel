@@ -86,6 +86,11 @@ func (s *Service) RequireCSRF(next http.Handler) http.Handler {
 				token = r.PostForm.Get("csrf_token")
 			}
 		}
+		if token == "" && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+			if err := r.ParseMultipartForm(32 << 20); err == nil {
+				token = r.PostForm.Get("csrf_token")
+			}
+		}
 		if !csrfMatches(current.record.csrfHash, token) {
 			http.Error(w, "request rejected", http.StatusForbidden)
 			return
