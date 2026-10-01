@@ -6,6 +6,7 @@
   {{template "navigation" .}}
   <div class="page">
     <header class="topbar"><div><span class="crumb">Sites / Runtime</span><strong class="mono">{{.SiteID}}</strong></div></header>
+    {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><p class="eyebrow">Per-site process pool</p><h1>PHP {{.Config.Version}}</h1><p>Current validated PHP-FPM limits for this site.</p></div></header>
       <section class="resource-strip" aria-label="PHP limits">

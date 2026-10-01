@@ -6,6 +6,7 @@
   {{template "navigation" .}}
   <div class="page">
     <header class="topbar"><div><span class="crumb">Sites / Overview</span><strong class="mono">{{.Site.ID}}</strong></div><a class="btn" href="/sites">All sites</a></header>
+    {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><p class="eyebrow">Site overview</p><h1>{{.Site.PrimaryDomain}}</h1><p>{{if .Site.Public}}Public website{{else}}Private website · connect through an SSH tunnel{{end}}</p></div><span class="badge {{if eq .Site.State "active"}}good{{else if eq .Site.State "failed"}}bad{{else if eq .Site.State "provisioning"}}warn{{else}}neutral{{end}}">{{.Site.State}}</span></header>
       {{if .JobID}}<p class="notice"><strong>Server task queued</strong><span>Follow live progress from the Dashboard.</span><a href="/?job={{.JobID}}">View task</a></p>{{end}}

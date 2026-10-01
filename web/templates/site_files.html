@@ -6,6 +6,7 @@
   {{template "navigation" .}}
   <div class="page">
     <header class="topbar"><div><span class="crumb">Sites / Files &amp; Access</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><p class="eyebrow">Confined file manager</p><h1>Files &amp; Access</h1><p>All operations stay inside this site's root. Deleted items rest in Trash until purged.</p></div></header>
       {{if .OneTimePassword}}<p class="notice" data-notice><strong>New SFTP password</strong><span class="mono" data-one-time-password>{{.OneTimePassword}}</span><span>{{.Notice}}</span></p>{{else if .Notice}}<p class="notice" data-notice><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}

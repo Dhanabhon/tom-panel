@@ -6,6 +6,7 @@
   {{template "navigation" .}}
   <div class="page">
     <header class="topbar"><div><span class="crumb">Sites / Databases</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><p class="eyebrow">Site-scoped MariaDB</p><h1>Databases</h1><p>Each database is owned by this site with its own users. Secrets are shown exactly once.</p></div></header>
       {{if .OneTimeCredential}}<p class="notice" data-notice><strong>{{if eq .OneTimeCredential.Database "phpmyadmin"}}Basic Auth password{{else}}Database password{{end}}</strong><span class="mono" data-one-time-password>{{.OneTimeCredential.Password}}</span><span>{{.Notice}}</span></p>{{else if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}

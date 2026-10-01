@@ -30,7 +30,7 @@ type FileHandlers struct {
 }
 
 type filesPageData struct {
-	Title, ServerName, CurrentNav, CSRFToken, JobID string
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
 	Site                                            sites.Site
 	Path, Parent                                    string
 	Entries                                         []files.Entry
@@ -141,7 +141,7 @@ func (h *FileHandlers) page(w http.ResponseWriter, r *http.Request) {
 	trash, _ := h.service.ListTrash(r.Context(), site.ID, "")
 	account, keys, _ := h.access.Get(r.Context(), site.ID)
 	data := filesPageData{
-		Title: site.PrimaryDomain + " · Files · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		Title: site.PrimaryDomain + " · Files · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "files",
 		CSRFToken: session.CSRFToken, Site: site, Path: dir, Parent: parent,
 		Entries: entries, Trash: trash, Account: &account, Keys: keys,
 	}
@@ -468,7 +468,7 @@ func (h *FileHandlers) sftpPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	account, keys, _ := h.access.Get(r.Context(), site.ID)
 	h.render(w, "site_files", filesPageData{
-		Title: site.PrimaryDomain + " · Files · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		Title: site.PrimaryDomain + " · Files · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "files",
 		CSRFToken: session.CSRFToken, Site: site, Path: ".", Parent: ".",
 		Entries: h.rootEntries(r, site.ID), Account: &account, Keys: keys,
 		OneTimePassword: password, Notice: "Copy the new SFTP password now. It will not be shown again.",

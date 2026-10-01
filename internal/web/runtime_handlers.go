@@ -8,6 +8,7 @@ import (
 
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
+	"github.com/Dhanabhon/tom-panel/internal/sites"
 )
 
 type RuntimeHandlers struct {
@@ -19,7 +20,8 @@ type RuntimeHandlers struct {
 }
 
 type runtimePageData struct {
-	Title, ServerName, CurrentNav, CSRFToken, SiteID string
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, SiteID string
+	Site                                             sites.Site
 	Config                                           panelruntime.PHPConfig
 }
 
@@ -60,10 +62,11 @@ func (h *RuntimeHandlers) show(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	site := sites.Site{ID: siteID, PrimaryDomain: siteID}
 	var body bytes.Buffer
 	if err := h.templates.ExecuteTemplate(&body, "site_runtime", runtimePageData{
-		Title: "PHP runtime · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
-		CSRFToken: session.CSRFToken, SiteID: siteID, Config: config,
+		Title: "PHP runtime · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "runtime",
+		CSRFToken: session.CSRFToken, SiteID: siteID, Site: site, Config: config,
 	}); err != nil {
 		http.Error(w, "page could not be rendered", http.StatusInternalServerError)
 		return

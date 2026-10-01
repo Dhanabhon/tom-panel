@@ -26,3 +26,16 @@
   </div>
 </nav>
 {{end}}
+
+{{define "site-tabs"}}
+<nav class="tabs" aria-label="Site sections">
+  <a class="tab{{if eq .CurrentTab "overview"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}">Overview</a>
+  <a class="tab{{if eq .CurrentTab "domains"}} active" aria-current="page{{end}}" href="/domains">Domains &amp; SSL</a>
+  <a class="tab{{if eq .CurrentTab "files"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/files">Files &amp; Access</a>
+  <a class="tab{{if eq .CurrentTab "runtime"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/runtime">Runtime</a>
+  <a class="tab{{if eq .CurrentTab "databases"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/databases">Databases</a>
+  <a class="tab{{if eq .CurrentTab "applications"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/applications">Applications</a>
+  <span class="tab disabled" aria-disabled="true" title="Available in a later release">Backups</span>
+  <span class="tab disabled" aria-disabled="true" title="Available in a later release">Logs</span>
+</nav>
+{{end}}

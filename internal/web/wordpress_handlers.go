@@ -28,7 +28,7 @@ type WordPressHandlers struct {
 }
 
 type wordpressPageData struct {
-	Title, ServerName, CurrentNav, CSRFToken, JobID string
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
 	Site                                            sites.Site
 	SiteKind                                        string
 	Installation                                    *apps.Installation
@@ -103,7 +103,7 @@ func (h *WordPressHandlers) loadSite(w http.ResponseWriter, r *http.Request) (si
 
 func (h *WordPressHandlers) snapshot(r *http.Request, site sites.Site, credentials *apps.OneTimeInstallCredentials, notice, warning string) wordpressPageData {
 	data := wordpressPageData{
-		Title: site.PrimaryDomain + " · WordPress · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		Title: site.PrimaryDomain + " · WordPress · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "applications",
 		Credentials: credentials, Notice: notice, Warning: warning, JobID: r.URL.Query().Get("job"),
 		SiteKind: string(site.Kind),
 	}

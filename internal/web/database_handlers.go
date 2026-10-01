@@ -25,7 +25,7 @@ type DatabaseHandlers struct {
 }
 
 type databasesPageData struct {
-	Title, ServerName, CurrentNav, CSRFToken, JobID string
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
 	Site                                            sites.Site
 	Databases                                       []databases.Database
 	Backups                                         []databases.Backup
@@ -102,7 +102,7 @@ func (h *DatabaseHandlers) loadSite(w http.ResponseWriter, r *http.Request) (sit
 
 func (h *DatabaseHandlers) snapshot(r *http.Request, site sites.Site, credential *databases.Credential, notice, warning string) databasesPageData {
 	data := databasesPageData{
-		Title: site.PrimaryDomain + " · Databases · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		Title: site.PrimaryDomain + " · Databases · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "databases",
 		Notice: notice, Warning: warning,
 		OneTimeCredential: credential,
 	}

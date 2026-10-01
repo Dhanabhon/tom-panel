@@ -28,7 +28,7 @@ type LaravelHandlers struct {
 }
 
 type laravelPageData struct {
-	Title, ServerName, CurrentNav, CSRFToken, JobID string
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
 	Site                                            sites.Site
 	SiteKind                                        string
 	Installation                                    *apps.LaravelInstallation
@@ -100,7 +100,7 @@ func (h *LaravelHandlers) loadSite(w http.ResponseWriter, r *http.Request) (site
 
 func (h *LaravelHandlers) snapshot(r *http.Request, site sites.Site, credentials *apps.LaravelOneTimeCredentials, notice, warning string) laravelPageData {
 	data := laravelPageData{
-		Title: site.PrimaryDomain + " · Laravel · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		Title: site.PrimaryDomain + " · Laravel · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "applications",
 		Credentials: credentials, Notice: notice, Warning: warning, JobID: r.URL.Query().Get("job"),
 		SiteKind: string(site.Kind),
 	}

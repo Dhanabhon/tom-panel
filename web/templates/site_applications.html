@@ -1,0 +1,47 @@
+{{define "site_applications"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Applications</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "site-tabs" .}}
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Guided installers</p><h1>Applications</h1><p>WordPress and Laravel workflows for this site. Controls appear only when the site type supports them.</p></div></header>
+      {{if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+
+      {{if eq .SiteKind "php"}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>WordPress</h2>
+          {{if .WordPress}}
+          <p>Installed · state <strong>{{.WordPress.State}}</strong> · added {{.WordPress.CreatedAt.Format "2006-01-02"}}.</p>
+          <div class="form-actions"><a class="btn" href="/sites/{{.Site.ID}}/wordpress">Manage WordPress</a></div>
+          {{else}}
+          <p>Guided installer with generated administrator credentials, update channels, cron mode, and cache controls.</p>
+          <div class="form-actions"><a class="btn primary" href="/sites/{{.Site.ID}}/wordpress">Install WordPress</a></div>
+          {{end}}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Laravel</h2>
+          {{if .Laravel}}
+          <p>Connected to <span class="mono">{{.Laravel.Repository}}</span> · branch <strong>{{.Laravel.Branch}}</strong> · release <span class="mono">{{.Laravel.CurrentRelease}}</span>.</p>
+          <div class="form-actions"><a class="btn" href="/sites/{{.Site.ID}}/laravel">Deploy and manage</a></div>
+          {{else}}
+          <p>Fixed deployment pipeline with atomic release activation and a separately confirmed migration step.</p>
+          <div class="form-actions"><a class="btn primary" href="/sites/{{.Site.ID}}/laravel">Deploy Laravel</a></div>
+          {{end}}
+        </div>
+      </section>
+      {{else}}
+      <section class="panel"><div class="panel-body"><p class="empty">Application installers are available for PHP sites. This site is {{.SiteKind}}.</p></div></section>
+      {{end}}
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

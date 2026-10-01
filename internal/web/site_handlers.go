@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Dhanabhon/tom-panel/internal/apps"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
@@ -24,6 +25,8 @@ type SiteHandlers struct {
 	serverName  string
 	templates   *template.Template
 	mux         *http.ServeMux
+	wordPress   *apps.WordPressProvisioner
+	laravel     *apps.LaravelProvisioner
 }
 
 type sitesPageData struct {
@@ -32,7 +35,7 @@ type sitesPageData struct {
 }
 
 type sitePageData struct {
-	Title, ServerName, CurrentNav, CSRFToken, JobID string
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
 	Site                                            sites.Site
 }
 
@@ -55,9 +58,59 @@ func NewSiteHandlers(authService *auth.Service, repository *sites.Repository, ru
 	h.mux.Handle("GET /sites/new", authService.RequireSession(http.HandlerFunc(h.createPage)))
 	h.mux.Handle("POST /sites", authService.RequireSession(authService.RequireCSRF(http.HandlerFunc(h.create))))
 	h.mux.Handle("GET /sites/{siteID}", authService.RequireSession(http.HandlerFunc(h.overview)))
+	h.mux.Handle("GET /sites/{siteID}/applications", authService.RequireSession(http.HandlerFunc(h.applications)))
 	h.mux.Handle("POST /sites/{siteID}/disable", authService.RequireSession(authService.RequireCSRF(http.HandlerFunc(h.disable))))
 	h.mux.Handle("POST /sites/{siteID}/enable", authService.RequireSession(authService.RequireCSRF(http.HandlerFunc(h.enable))))
 	return h, nil
+}
+
+// SetApplicationProviders installs the application provisioners used by the
+// Applications tab. Without them the tab renders empty states only.
+func (h *SiteHandlers) SetApplicationProviders(wordPress *apps.WordPressProvisioner, laravel *apps.LaravelProvisioner) {
+	h.wordPress = wordPress
+	h.laravel = laravel
+}
+
+type applicationsPageData struct {
+	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
+	Site                                                        sites.Site
+	SiteKind                                                    string
+	WordPress                                                   *apps.Installation
+	Laravel                                                     *apps.LaravelInstallation
+	Notice                                                      string
+}
+
+func (h *SiteHandlers) applications(w http.ResponseWriter, r *http.Request) {
+	session, ok := auth.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
+	site, err := h.repository.Get(r.Context(), r.PathValue("siteID"))
+	if errors.Is(err, sites.ErrSiteNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, "site could not be loaded", http.StatusInternalServerError)
+		return
+	}
+	data := applicationsPageData{
+		Title: site.PrimaryDomain + " · Applications · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		CurrentTab: "applications", CSRFToken: session.CSRFToken, Site: site, SiteKind: string(site.Kind),
+		Notice: strings.TrimSpace(r.URL.Query().Get("notice")),
+	}
+	if h.wordPress != nil {
+		if installation, err := h.wordPress.Installation(r.Context(), site.ID); err == nil {
+			data.WordPress = &installation
+		}
+	}
+	if h.laravel != nil {
+		if installation, err := h.laravel.Installation(r.Context(), site.ID); err == nil {
+			data.Laravel = &installation
+		}
+	}
+	h.render(w, "site_applications", data)
 }
 
 func (h *SiteHandlers) Handler() http.Handler {
@@ -115,7 +168,7 @@ func (h *SiteHandlers) overview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "site_overview", sitePageData{
-		Title: site.PrimaryDomain + " · TomPanel", ServerName: h.serverName, CurrentNav: "sites",
+		Title: site.PrimaryDomain + " · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "overview",
 		CSRFToken: session.CSRFToken, JobID: r.URL.Query().Get("job"), Site: site,
 	})
 }

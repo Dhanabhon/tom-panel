@@ -75,34 +75,35 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	siteRoutes, err := NewSiteHandlers(service, repository, runtimeService, provisioner, manager, serverName())
-	if err != nil {
-		return nil, err
-	}
-	fileService := files.NewService(files.DefaultLimits(), files.SiteRootResolver("/srv/tompanel/sites"))
-	accessService := files.NewAccessService(database, agent.Call)
-	fileRoutes, err := NewFileHandlers(service, repository, fileService, accessService, serverName())
-	if err != nil {
-		return nil, err
-	}
 	databaseService := databases.NewService(database, agent.Call)
-	databaseRoutes, err := NewDatabaseHandlers(service, repository, databaseService, serverName())
-	if err != nil {
-		return nil, err
-	}
 	wordPressProvisioner := apps.NewWordPressProvisioner(database, repository, agent.Call)
 	wordPressProvisioner.SetDatabaseProvider(databaseService)
 	databaseService.SetAppConfigUpdater(wordPressProvisioner.UpdateDBConfig)
 	if err := wordPressProvisioner.Register(manager); err != nil {
 		return nil, err
 	}
-	wordPressRoutes, err := NewWordPressHandlers(service, repository, wordPressProvisioner, databaseService, manager, serverName())
-	if err != nil {
-		return nil, err
-	}
 	laravelProvisioner := apps.NewLaravelProvisioner(database, repository, agent.Call)
 	laravelProvisioner.SetDatabaseProvider(databaseService)
 	if err := laravelProvisioner.Register(manager); err != nil {
+		return nil, err
+	}
+	siteRoutes, err := NewSiteHandlers(service, repository, runtimeService, provisioner, manager, serverName())
+	if err != nil {
+		return nil, err
+	}
+	siteRoutes.SetApplicationProviders(wordPressProvisioner, laravelProvisioner)
+	fileService := files.NewService(files.DefaultLimits(), files.SiteRootResolver("/srv/tompanel/sites"))
+	accessService := files.NewAccessService(database, agent.Call)
+	fileRoutes, err := NewFileHandlers(service, repository, fileService, accessService, serverName())
+	if err != nil {
+		return nil, err
+	}
+	databaseRoutes, err := NewDatabaseHandlers(service, repository, databaseService, serverName())
+	if err != nil {
+		return nil, err
+	}
+	wordPressRoutes, err := NewWordPressHandlers(service, repository, wordPressProvisioner, databaseService, manager, serverName())
+	if err != nil {
 		return nil, err
 	}
 	laravelRoutes, err := NewLaravelHandlers(service, repository, laravelProvisioner, databaseService, manager, serverName())
@@ -129,6 +130,7 @@ func New(cfg config.Config) (*App, error) {
 	mux.Handle("GET /sites/new", siteRoutes.Handler())
 	mux.Handle("POST /sites", siteRoutes.Handler())
 	mux.Handle("GET /sites/{siteID}", siteRoutes.Handler())
+	mux.Handle("GET /sites/{siteID}/applications", siteRoutes.Handler())
 	mux.Handle("POST /sites/{siteID}/disable", siteRoutes.Handler())
 	mux.Handle("POST /sites/{siteID}/enable", siteRoutes.Handler())
 	mux.Handle("GET /sites/{siteID}/runtime", runtimeRoutes.Handler())
