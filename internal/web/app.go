@@ -100,6 +100,15 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	laravelProvisioner := apps.NewLaravelProvisioner(database, repository, agent.Call)
+	laravelProvisioner.SetDatabaseProvider(databaseService)
+	if err := laravelProvisioner.Register(manager); err != nil {
+		return nil, err
+	}
+	laravelRoutes, err := NewLaravelHandlers(service, repository, laravelProvisioner, databaseService, manager, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -149,6 +158,13 @@ func New(cfg config.Config) (*App, error) {
 		"POST /sites/{siteID}/wordpress/cache/clear", "POST /sites/{siteID}/wordpress/redis",
 	} {
 		mux.Handle(pattern, wordPressRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"GET /sites/{siteID}/laravel",
+		"POST /sites/{siteID}/laravel/install", "POST /sites/{siteID}/laravel/deploy",
+		"POST /sites/{siteID}/laravel/workers",
+	} {
+		mux.Handle(pattern, laravelRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())

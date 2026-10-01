@@ -235,6 +235,67 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, removeRedisACL(ctx, input, defaultRedisEnvironment()))
+	case "laravel.checkout":
+		var input laravelCheckoutInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, checkoutLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.composer_install":
+		var input laravelReleaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, composerInstallLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.node_build":
+		var input laravelReleaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, nodeBuildLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.migrate":
+		var input laravelReleaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, migrateLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.optimize":
+		var input laravelReleaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, optimizeLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.health_check":
+		var input laravelHealthInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, healthCheckLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.activate_release":
+		var input laravelReleaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, activateLaravel(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.configure_environment":
+		var input laravelEnvInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, configureLaravelEnvironment(ctx, input, defaultLaravelEnvironment()))
+	case "laravel.ensure_deploy_key":
+		var input laravelDeployKeyInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := ensureLaravelDeployKey(ctx, input, defaultLaravelEnvironment())
+		return operationResult(result, err)
+	case "laravel.ensure_workers":
+		var input laravelWorkersInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, ensureLaravelWorkers(ctx, input, defaultLaravelEnvironment()))
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}

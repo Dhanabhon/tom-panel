@@ -1,0 +1,71 @@
+{{define "site_laravel"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}<script src="/static/laravel-deploy.js" defer></script></head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Applications</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Fixed deployment pipeline</p><h1>Laravel</h1><p>One pinned pipeline: checkout, install, optional build, confirmed migrations, health check, atomic activation.</p></div></header>
+      {{if .JobID}}<p class="notice"><strong>Server task queued</strong><span>Follow live progress from the Dashboard.</span><a href="/?job={{.JobID}}">View task</a></p>{{end}}
+      {{if .Credentials}}<p class="notice" data-notice>
+        <strong>Credentials</strong>
+        <span>Database <span class="mono">{{.Credentials.Database}}</span> user <span class="mono">{{.Credentials.DBUser}}</span> / <span class="mono" data-one-time-password>{{.Credentials.DBPassword}}</span></span>
+        <span>{{.Notice}}</span>
+      </p>{{else if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+
+      {{if .Installation}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Deployment</h2>
+          <p><span class="mono">{{.Installation.Repository}}</span> · branch <strong>{{.Installation.Branch}}</strong>{{if .Installation.NodeBuild}} · Node build{{end}}{{if .Installation.CurrentRelease}} · current release <span class="mono">{{.Installation.CurrentRelease}}</span>{{end}}</p>
+          {{if .Installation.DeployPublicKey}}
+          <details>
+            <summary>Site deploy key (add to your Git host with read access)</summary>
+            <pre class="mono">{{.Installation.DeployPublicKey}}</pre>
+          </details>
+          {{end}}
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/laravel/deploy" data-deploy-form>
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="check-row"><input type="checkbox" name="confirmed" required><span><strong>I confirm this deployment</strong><small>Activation happens only after the health gate passes.</small></span></label>
+            <label class="check-row"><input type="checkbox" name="run_migrations"><span><strong>Run database migrations</strong><small>Executes <span class="mono">php artisan migrate --force</span> as a separately confirmed step.</small></span></label>
+            <div class="form-actions"><button class="btn primary" type="submit">Deploy new release</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Workers</h2>
+          <form method="post" action="/sites/{{.Site.ID}}/laravel/workers">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="check-row"><input type="checkbox" name="enabled"{{if .Installation.SystemCron}} checked{{end}}><span><strong>Managed queue worker and scheduler</strong><small>TomPanel-owned systemd units with a five minute schedule timer.</small></span></label>
+            <div class="form-actions"><button class="btn" type="submit">Apply</button></div>
+          </form>
+        </div>
+      </section>
+      {{else if eq .SiteKind "php"}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Install Laravel</h2>
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/laravel/install">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="field">Repository<input name="repository" type="text" class="mono" placeholder="https://github.com/you/app.git" required><small>HTTPS or SSH Git locations only. Private repositories use a site deploy key.</small></label>
+            <div class="form-grid">
+              <label class="field">Branch<input name="branch" type="text" value="main" required></label>
+              <label class="check-row"><input type="checkbox" name="node_build"><span><strong>Run Node build</strong><small>Requires a committed package-lock.json.</small></span></label>
+            </div>
+            <div class="form-actions"><button class="btn primary" type="submit">Install Laravel</button><small>A dedicated database is generated automatically. Requires recent re-authentication.</small></div>
+          </form>
+        </div>
+      </section>
+      {{else}}
+      <section class="panel"><div class="panel-body"><p class="empty">Laravel deploys are available for PHP sites. This site is {{.SiteKind}}.</p></div></section>
+      {{end}}
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

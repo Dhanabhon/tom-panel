@@ -21,7 +21,8 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/sites"
 )
 
-const siteRootPath = "/srv/tompanel/sites"
+// siteRootPath is the base of every managed site tree.
+var siteRootPath = "/srv/tompanel/sites"
 
 var nginxMu sync.Mutex
 
