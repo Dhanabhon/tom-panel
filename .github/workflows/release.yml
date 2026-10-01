@@ -1,0 +1,31 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Derive version and timestamp
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> "$GITHUB_ENV"
+      - name: Build reproducible package
+        run: ./scripts/build-deb.sh "${VERSION}"
+      - name: Reproducibility self-check
+        run: |
+          cp dist/tompanel_${VERSION}_amd64.deb /tmp/first.deb
+          ./scripts/build-deb.sh "${VERSION}"
+          cmp /tmp/first.deb dist/tompanel_${VERSION}_amd64.deb
+      - name: Attach artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/tompanel_${VERSION}_amd64.deb
+            dist/tompanel_${VERSION}_amd64.deb.sha256

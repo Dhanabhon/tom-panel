@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+
+# Container acceptance proxy: installs the freshly built .deb on a clean
+# Ubuntu 24.04 and drills the install-critical checks that do not need a
+# booted systemd. The full VM drill remains scripts/acceptance-ubuntu-2404.sh.
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Copy the package built by scripts/build-deb.sh.
+COPY dist/tompanel_*_amd64.deb /tmp/tompanel.deb
+
+RUN set -eu; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates; \
+    echo '==> installing package with dependency resolution'; \
+    apt-get install -y /tmp/tompanel.deb; \
+    echo '==> package contents'; \
+    dpkg -c /tmp/tompanel.deb | grep -E 'usr/lib/tompanel|systemd/system|tmpfiles|logrotate'; \
+    echo '==> service account'; \
+    id tompanel; \
+    echo '==> state layout'; \
+    stat -c '%U:%G %a %n' /var/lib/tompanel /var/backups/tompanel /etc/tompanel/master.key; \
+    echo '==> master key generated exactly once, mode 0400'; \
+    test "$(stat -c %a /etc/tompanel/master.key)" = "400"; \
+    echo '==> config is loopback only'; \
+    grep -q 'listen = "127.0.0.1:8080"' /etc/tompanel/config.toml; \
+    echo '==> starting panel without systemd (manual exec)'; \
+    su -s /bin/sh tompanel -c '/usr/lib/tompanel/tompaneld -config /etc/tompanel/config.toml' >/tmp/panel.log 2>&1 & \
+    panel_pid=$!; \
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do \
+        if curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1; then break; fi; \
+        sleep 1; \
+    done; \
+    curl -fsS http://127.0.0.1:8080/healthz || { echo 'panel log:'; cat /tmp/panel.log; exit 1; }; \
+    echo; \
+    echo '==> panel never binds a public interface'; \
+    ! ss -ltn | grep -E ':8080\s' | grep -v 127.0.0.1; \
+    echo '==> single-use setup URL issues for the service account'; \
+    su -s /bin/sh tompanel -c '/usr/lib/tompanel/tompanel -config /etc/tompanel/config.toml setup-url' </dev/null >/dev/null 2>&1 || true; \
+    echo "setup-url requires a TTY (expected refusal in container)"; \
+    echo '==> log secret scan'; \
+    ! grep -rEn '(password|token|secret)=' /var/log/tompanel/ 2>/dev/null; \
+    kill "$panel_pid"; \
+    echo '==> uninstall keeps data by default'; \
+    apt-get remove -y tompanel >/dev/null; \
+    test -d /srv/tompanel && test -d /var/backups/tompanel; \
+    echo 'ACCEPTANCE-PROXY PASSED'

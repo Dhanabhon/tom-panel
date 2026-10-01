@@ -16,3 +16,5 @@
 !packaging/**
 !scripts
 !scripts/**
+!dist
+!dist/*.deb

@@ -46,3 +46,15 @@ checksum, or HTTPS download URL does not verify.
 ```sh
 sha256sum tompanel_VERSION_amd64.deb > tompanel_VERSION_amd64.deb.sha256
 ```
+
+## Building the release package
+
+```bash
+./scripts/build-deb.sh 1.2.0
+```
+
+The build runs in Docker (`Dockerfile.deb`): binaries compile with the
+pinned toolchain and `-trimpath`, package timestamps clamp to
+`SOURCE_DATE_EPOCH` (the commit timestamp), so re-running the script yields
+a byte-identical `.deb` plus its `.sha256`. CI re-proves reproducibility on
+every tag before publishing.

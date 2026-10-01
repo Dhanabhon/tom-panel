@@ -46,3 +46,4 @@
 /.github/copilot-instructions.md
 /docs/superpowers/
 tests/browser/node_modules/
+dist/

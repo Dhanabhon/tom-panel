@@ -44,7 +44,13 @@ if command -v /usr/lib/tompanel/tompanel >/dev/null 2>&1; then
     sudo -u "$TOMPANEL_USER" /usr/lib/tompanel/tompanel -config /etc/tompanel/config.toml migrate || true
 fi
 
-systemctl daemon-reload
-systemctl enable --now tompanel-agent.service tompanel.service
+# Service bring-up only applies where systemd is actually running
+# (containers and chroots install the units without starting them).
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    systemctl enable --now tompanel-agent.service tompanel.service
+else
+    echo "systemd is not running; installed units without enabling them" >&2
+fi
 
 exit 0

@@ -119,8 +119,12 @@ tompanel -config /etc/tompanel/config.toml setup-url
 go test ./...                                       # unit and integration tests
 go vet ./...
 ./scripts/test-docker.sh                            # Ubuntu 24.04 verification container
+./scripts/build-deb.sh 0.1.0                        # reproducible Debian package into dist/
 npm --prefix tests/browser ci && npm --prefix tests/browser test   # browser smoke
 ```
+
+Two builds of the same commit produce a byte-identical `.deb`; the release
+workflow re-verifies this before attaching artifacts.
 
 ## Project status
 

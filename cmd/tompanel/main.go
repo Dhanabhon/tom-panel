@@ -38,15 +38,26 @@ func runWith(ctx context.Context, args []string, input *os.File, output io.Write
 	}
 	remaining := flags.Args()
 	setupURL := len(remaining) == 1 && remaining[0] == "setup-url"
+	migrate := len(remaining) == 1 && remaining[0] == "migrate"
 	admin := len(remaining) == 2 && remaining[0] == "admin"
-	if !setupURL && !admin {
-		return errors.New("usage: tompanel [-config path] setup-url|admin reset-password|set-username|reset-totp")
+	if !setupURL && !migrate && !admin {
+		return errors.New("usage: tompanel [-config path] setup-url|migrate|admin reset-password|set-username|reset-totp")
 	}
 	if setupURL && !outputTTY {
 		return errors.New("setup URL output requires an interactive terminal")
 	}
 	cfg, err := config.Load(*configPath)
 	if err != nil {
+		return err
+	}
+	if migrate {
+		// store.Open applies every pending migration before returning.
+		service, err := openService(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		_ = service
+		_, err = fmt.Fprintln(output, "migrations applied")
 		return err
 	}
 	service, err := openService(ctx, cfg)
