@@ -10,3 +10,5 @@
 !migrations/**
 !web
 !web/**
+!tests
+!tests/**
