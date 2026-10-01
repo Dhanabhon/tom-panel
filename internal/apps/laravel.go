@@ -93,7 +93,7 @@ func BuildLaravelInstallJob(input LaravelInstallInput) ([]string, error) {
 	if input.NodeBuild {
 		steps = append(steps, "laravel.node_build")
 	}
-	steps = append(steps, "laravel.configure_environment", "laravel.migrate", "laravel.optimize", "laravel.activate_release", "laravel.ensure_workers")
+	steps = append(steps, "laravel.configure_environment", "laravel.migrate", "laravel.optimize", "laravel.health_check", "laravel.activate_release", "laravel.ensure_workers")
 	return steps, nil
 }
 

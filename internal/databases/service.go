@@ -210,6 +210,9 @@ func (s *Service) RotateCredential(ctx context.Context, siteID, suffix string, u
 	}{siteID, record.Name, username, password, previous}, &struct{}{}); err != nil {
 		return Credential{}, err
 	}
+	if err := s.insertCredentialRow(ctx, record.ID, username, generation); err != nil {
+		return Credential{}, err
+	}
 	if err := s.retireCredentialRows(ctx, record.ID, generation); err != nil {
 		return Credential{}, err
 	}
