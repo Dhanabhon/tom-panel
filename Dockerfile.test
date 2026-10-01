@@ -23,9 +23,11 @@ FROM base AS verify
 COPY . .
 
 RUN go test ./...
-RUN go test -race ./internal/agent ./internal/sites ./internal/domains ./internal/runtime ./internal/web
+RUN go test -race ./internal/agent ./internal/sites ./internal/domains ./internal/runtime ./internal/files ./internal/databases ./internal/apps ./internal/web ./tests/integration
 RUN go vet ./...
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/...
 RUN go test -tags=docker ./internal/agent -run TestDockerGeneratedConfigs
 RUN node --check web/static/app.js \
-    && node --check web/static/site-create.js
+    && node --check web/static/site-create.js \
+    && node --check web/static/file-manager.js \
+    && node --check web/static/laravel-deploy.js
