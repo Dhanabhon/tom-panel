@@ -1,0 +1,172 @@
+{{define "site_files"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}<script src="/static/file-manager.js" defer></script></head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Files &amp; Access</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Confined file manager</p><h1>Files &amp; Access</h1><p>All operations stay inside this site's root. Deleted items rest in Trash until purged.</p></div></header>
+      {{if .OneTimePassword}}<p class="notice" data-notice><strong>New SFTP password</strong><span class="mono" data-one-time-password>{{.OneTimePassword}}</span><span>{{.Notice}}</span></p>{{else if .Notice}}<p class="notice" data-notice><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+
+      <section class="panel">
+        <div class="panel-body">
+          <div class="form-grid">
+            <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/files/upload" enctype="multipart/form-data">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <input name="path" type="hidden" value="{{.Path}}">
+              <label class="field">Upload files<input type="file" name="file" required data-upload-input></label>
+              <div class="form-actions"><button class="btn" type="submit">Upload</button></div>
+            </form>
+            <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/files/create">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <input name="path" type="hidden" value="{{.Path}}">
+              <div class="form-grid">
+                <label class="field">Name<input name="name" type="text" placeholder="notes.txt" required></label>
+                <label class="field">Kind<select name="kind"><option value="file">File</option><option value="directory">Directory</option></select></label>
+              </div>
+              <div class="form-actions"><button class="btn" type="submit">Create</button></div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body" data-file-browser data-path="{{.Path}}">
+          <div class="table-head"><h2>{{if eq .Path "."}}Site root{{else}}<span class="mono">{{.Path}}</span>{{end}}</h2>
+            {{if ne .Path "."}}<a class="btn" href="/sites/{{.Site.ID}}/files?path={{.Parent}}">Up one level</a>{{end}}
+          </div>
+          {{if .Entries}}
+          <form method="post" action="/sites/{{.Site.ID}}/files/archive">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <input name="path" type="hidden" value="{{.Path}}">
+            <table class="table">
+              <thead><tr><th aria-label="Select"></th><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+              <tbody>
+                {{range .Entries}}
+                <tr data-entry="{{.Name}}" data-directory="{{.IsDir}}">
+                  <td><input type="checkbox" name="selected" value="{{.Name}}" aria-label="Select {{.Name}}"></td>
+                  <td>{{if .IsDir}}<a class="mono" href="/sites/{{$.Site.ID}}/files?path={{if eq $.Path "."}}{{.Name}}{{else}}{{$path := printf "%s/%s" $.Path .Name}}{{$path}}{{end}}">{{.Name}}/</a>{{else}}<span class="mono">{{.Name}}</span>{{end}}</td>
+                  <td>{{if .IsDir}}—{{else}}{{.Size}} B{{end}}</td>
+                  <td>{{.ModTime.Format "2006-01-02 15:04"}}</td>
+                  <td class="row-actions">
+                    {{if not .IsDir}}<a class="link" href="/sites/{{$.Site.ID}}/files/download?path={{if eq $.Path "."}}{{.Name}}{{else}}{{$p := printf "%s/%s" $.Path .Name}}{{$p}}{{end}}">Download</a>{{end}}
+                    <button class="link" type="button" data-rename="{{.Name}}">Rename</button>
+                    <button class="link" type="button" data-copy="{{.Name}}">Copy</button>
+                    <button class="link danger" type="button" data-trash="{{.Name}}">Trash</button>
+                  </td>
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+            <div class="form-actions"><label class="field inline">Archive name<input name="name" type="text" placeholder="archive.tar.gz"></label><button class="btn" type="submit">Archive selected</button></div>
+          </form>
+          {{else}}<p class="empty">This directory is empty.</p>{{end}}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Archives</h2>
+          <div class="form-grid">
+            <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/files/extract" enctype="multipart/form-data">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <input name="path" type="hidden" value="{{.Path}}">
+              <label class="field">Extract archive<input type="file" name="file" accept=".tar.gz,.tgz,application/gzip" required></label>
+              <div class="form-actions"><button class="btn" type="submit">Extract into new folder</button></div>
+            </form>
+          </div>
+          <p class="hint">Extraction validates every entry and enforces file-count and expanded-size limits. Unsafe entries abort the whole operation.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Trash</h2>
+          {{if .Trash}}
+          <table class="table">
+            <thead><tr><th>Original path</th><th>Deleted</th><th></th></tr></thead>
+            <tbody>
+              {{range .Trash}}
+              <tr>
+                <td><span class="mono">{{.OriginalPath}}</span></td>
+                <td>{{.DeletedAt.Format "2006-01-02 15:04"}}</td>
+                <td class="row-actions">
+                  <form method="post" action="/sites/{{$.Site.ID}}/files/trash/restore">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="id" type="hidden" value="{{.ID}}">
+                    <button class="link" type="submit">Restore</button>
+                  </form>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+          {{else}}<p class="empty">Trash is empty.</p>{{end}}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>SFTP access</h2>
+          {{if .Account}}
+          <p>Account <strong class="mono">{{.Account.Username}}</strong> is <strong>{{if eq .Account.State "active"}}active{{else}}disabled{{end}}</strong>{{if .Account.PasswordSet}} with a password set{{end}}. Connections are chrooted to the site root with shell, forwarding, tunneling, and agent access disabled.</p>
+          {{if eq .Account.State "active"}}
+          <div class="form-grid">
+            <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/access/sftp/password">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <div class="form-actions"><button class="btn" type="submit">Rotate password</button><small>Requires recent re-authentication. The new password is shown once.</small></div>
+            </form>
+            <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/access/sftp/disable">
+              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+              <div class="form-actions"><button class="btn danger" type="submit" data-confirm="Disable SFTP access for this site?">Disable SFTP</button></div>
+            </form>
+          </div>
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/access/sftp/keys/add">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="field">Authorize public key<input name="public_key" type="text" class="mono" placeholder="ssh-ed25519 AAAA… user@host" required></label>
+            <div class="form-actions"><button class="btn" type="submit">Add key</button></div>
+          </form>
+          {{if .Keys}}
+          <table class="table">
+            <thead><tr><th>Type</th><th>Fingerprint</th><th>Added</th><th></th></tr></thead>
+            <tbody>
+              {{range .Keys}}
+              <tr>
+                <td><span class="mono">{{.KeyType}}</span></td>
+                <td><span class="mono">{{.Fingerprint}}</span></td>
+                <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+                <td class="row-actions">
+                  <form method="post" action="/sites/{{$.Site.ID}}/access/sftp/keys/remove">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="fingerprint" type="hidden" value="{{.Fingerprint}}">
+                    <button class="link danger" type="submit" data-confirm="Remove this public key?">Remove</button>
+                  </form>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+          {{end}}
+          {{else}}
+          <form method="post" action="/sites/{{.Site.ID}}/access/sftp/enable">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-actions"><button class="btn primary" type="submit">Enable SFTP</button></div>
+          </form>
+          {{end}}
+          {{else}}
+          <p>SFTP is not configured for this site yet.</p>
+          <form method="post" action="/sites/{{.Site.ID}}/access/sftp/enable">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-actions"><button class="btn primary" type="submit">Enable SFTP</button></div>
+          </form>
+          {{end}}
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

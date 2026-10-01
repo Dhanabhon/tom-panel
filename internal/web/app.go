@@ -14,6 +14,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/config"
 	"github.com/Dhanabhon/tom-panel/internal/domains"
+	"github.com/Dhanabhon/tom-panel/internal/files"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
 	"github.com/Dhanabhon/tom-panel/internal/sites"
@@ -76,6 +77,12 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	fileService := files.NewService(files.DefaultLimits(), files.SiteRootResolver("/srv/tompanel/sites"))
+	accessService := files.NewAccessService(database, agent.Call)
+	fileRoutes, err := NewFileHandlers(service, repository, fileService, accessService, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -99,6 +106,16 @@ func New(cfg config.Config) (*App, error) {
 	mux.Handle("POST /sites/{siteID}/disable", siteRoutes.Handler())
 	mux.Handle("POST /sites/{siteID}/enable", siteRoutes.Handler())
 	mux.Handle("GET /sites/{siteID}/runtime", runtimeRoutes.Handler())
+	for _, pattern := range []string{
+		"GET /sites/{siteID}/files", "GET /sites/{siteID}/files/list", "GET /sites/{siteID}/files/download",
+		"POST /sites/{siteID}/files/create", "POST /sites/{siteID}/files/save", "POST /sites/{siteID}/files/upload",
+		"POST /sites/{siteID}/files/rename", "POST /sites/{siteID}/files/copy", "POST /sites/{siteID}/files/trash",
+		"POST /sites/{siteID}/files/trash/restore", "POST /sites/{siteID}/files/archive", "POST /sites/{siteID}/files/extract",
+		"POST /sites/{siteID}/access/sftp/enable", "POST /sites/{siteID}/access/sftp/disable",
+		"POST /sites/{siteID}/access/sftp/password", "POST /sites/{siteID}/access/sftp/keys/add", "POST /sites/{siteID}/access/sftp/keys/remove",
+	} {
+		mux.Handle(pattern, fileRoutes.Handler())
+	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
 	if err := manager.Start(context.Background()); err != nil {

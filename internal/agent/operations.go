@@ -93,6 +93,43 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, installPHPExtension(ctx, input))
+	case "file.grant_panel_access":
+		var input siteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, grantPanelAccess(ctx, input.SiteID))
+	case "sftp.ensure_account":
+		var input siteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, ensureSFTPAccount(ctx, input.SiteID))
+	case "sftp.disable_account":
+		var input siteInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, disableSFTPAccount(ctx, input.SiteID))
+	case "sftp.rotate_password":
+		var input sftpPasswordInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, rotateSFTPPassword(ctx, input))
+	case "sftp.add_key":
+		var input sftpKeyInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := addSFTPKey(ctx, input)
+		return operationResult(result, err)
+	case "sftp.remove_key":
+		var input sftpKeyInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, removeSFTPKey(ctx, input))
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}

@@ -134,13 +134,9 @@ func ensureIdentity(ctx context.Context, payload json.RawMessage) (map[string]st
 	if err := decodeStrict(payload, &input); err != nil || !validSiteID(input.SiteID) {
 		return nil, errors.New("site.ensure_identity payload is invalid")
 	}
-	name := "tp_" + input.SiteID[:16]
-	if _, err := user.Lookup(name); err == nil {
-		return map[string]string{"username": name}, nil
-	}
-	home := filepath.Join(siteRootPath, input.SiteID)
-	if err := runCommand(ctx, "/usr/sbin/useradd", "--system", "--no-create-home", "--home-dir", home, "--shell", "/usr/sbin/nologin", name); err != nil {
-		return nil, fmt.Errorf("create site identity: %w", err)
+	name, err := ensureSiteUser(ctx, input.SiteID)
+	if err != nil {
+		return nil, err
 	}
 	return map[string]string{"username": name}, nil
 }
