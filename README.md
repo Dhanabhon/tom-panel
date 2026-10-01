@@ -21,18 +21,18 @@ TomPanel is an open-source, web-based control panel for managing a single Linux 
 - Encrypted SQLite-backed state and an audit log
 - Durable background jobs with retry, cancellation, recovery, and live progress updates
 - A peer-verified Unix socket between the unprivileged panel and its privileged helper
+- Site lifecycle with managed Nginx, domains, DNS, SSL certificates, and per-site PHP-FPM pools
+- A confined File Manager with trash, archives, and site-scoped SFTP accounts
+- Site-scoped MariaDB databases with credential rotation and phpMyAdmin in private or public modes
+- Guarded WordPress and Laravel installers with fixed deployment pipelines
 - Health endpoint at `/healthz`
 
 ## MVP roadmap
 
-- Multiple sites with overview and management flows
-- Primary domains, subdomains, parked domains, redirects, DNS, and SSL
-- Per-site PHP versions, extensions, and runtime configuration
-- Database management with optional phpMyAdmin exposure through a subdomain, private access, or a selected port
-- WordPress and Laravel installers
-- WordPress-specific cache, object cache, LiteSpeed, and update controls
-- File management, backups and restore, FTP access, and cache clearing
+- WordPress-specific cache controls and object cache polish
+- Backups and restore, service and log views
 - Optional Cloudflare integration
+- Packaging, installer scripts, and VM acceptance testing
 
 ## Supported platform
 
