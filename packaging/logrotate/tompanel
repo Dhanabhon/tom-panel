@@ -1,0 +1,11 @@
+/var/log/tompanel/*.log {
+    weekly
+    rotate 8
+    size 50M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su tompanel tompanel
+}

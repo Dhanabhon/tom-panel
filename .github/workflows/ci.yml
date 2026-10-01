@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Test
+        run: go test ./...
+      - name: Race tests
+        run: go test -race ./internal/... ./tests/integration
+      - name: Vet
+        run: go vet ./...
+      - name: Build release binaries
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/...
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh packaging/debian/postinst packaging/debian/prerm
+      - name: Static asset checks
+        run: |
+          for script in web/static/*.js; do node --check "$script"; done

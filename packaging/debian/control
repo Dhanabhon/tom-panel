@@ -1,0 +1,10 @@
+Package: tompanel
+Version: VERSION_PLACEHOLDER
+Section: admin
+Priority: optional
+Architecture: amd64
+Depends: systemd, nginx, mariadb-server, php8.3-fpm, ufw, openssh-server, adduser, curl
+Maintainer: TomPanel <release@tompanel.example>
+Description: Single-admin VPS control panel
+ TomPanel manages multiple websites on one Ubuntu 24.04 server through a
+ private web panel and a narrowly scoped privileged helper.

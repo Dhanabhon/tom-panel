@@ -104,9 +104,30 @@ tompanel -config /etc/tompanel/config.toml setup-url
 - Keep `/etc/tompanel/master.key` readable only by the TomPanel service account.
 - Run the privileged helper only through the supported service configuration once installer packaging is available.
 
+## Operations and release
+
+- Durable backups with manifests, guarded restore, retention, and optional age-encrypted S3/R2 uploads (see Settings)
+- Site deletion with final backup, DNS release, and a seven-day quarantine
+- Allowlisted service controls, bounded log reads with secret redaction, activity history, and read-only system metrics
+- Optional Cloudflare, object storage, and SMTP integrations with encrypted secrets and connection tests
+- Signed (Ed25519) transactional panel updates with snapshot rollback; see `docs/release-signing.md`
+- Debian packaging, guided installer, and CI in `packaging/`, `scripts/`, and `.github/workflows/`
+
+## Development
+
+```bash
+go test ./...                                       # unit and integration tests
+go vet ./...
+./scripts/test-docker.sh                            # Ubuntu 24.04 verification container
+npm --prefix tests/browser ci && npm --prefix tests/browser test   # browser smoke
+```
+
 ## Project status
 
-Installation scripts, systemd units, complete HTTPS provisioning, and production acceptance testing are still pending. Review and test the code before using it on a server that contains important data.
+The MVP slice is feature-complete pending the full VM acceptance drill
+(`sudo ./scripts/acceptance-ubuntu-2404.sh` on a fresh Ubuntu 24.04 host)
+and a signed release build. Review and test before using it on a server
+that contains important data.
 
 ## License
 

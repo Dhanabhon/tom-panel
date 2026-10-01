@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(CDPATH="" cd -- "$(dirname -- "$0")/.." && pwd)
 
 command -v docker >/dev/null 2>&1 || {
   echo "Docker is required. Install Docker and start its daemon." >&2

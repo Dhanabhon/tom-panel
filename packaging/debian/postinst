@@ -1,0 +1,50 @@
+#!/bin/sh
+# Managed TomPanel package post-install.
+set -eu
+
+TOMPANEL_USER=tompanel
+TOMPANEL_GROUP=tompanel
+
+if ! getent group "$TOMPANEL_GROUP" >/dev/null; then
+    addgroup --system "$TOMPANEL_GROUP"
+fi
+if ! getent passwd "$TOMPANEL_USER" >/dev/null; then
+    adduser --system --ingroup "$TOMPANEL_GROUP" --no-create-home --shell /usr/sbin/nologin "$TOMPANEL_USER"
+fi
+
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/tompanel.conf
+
+mkdir -p /etc/tompanel /var/log/tompanel
+chown root:"$TOMPANEL_GROUP" /etc/tompanel
+chmod 0750 /etc/tompanel
+chown "$TOMPANEL_USER":"$TOMPANEL_GROUP" /var/log/tompanel
+chmod 0750 /var/log/tompanel
+
+if [ ! -f /etc/tompanel/config.toml ]; then
+    cat > /etc/tompanel/config.toml <<CONFIG
+listen = "127.0.0.1:8080"
+state_dir = "/var/lib/tompanel"
+agent_socket = "/run/tompanel/agent.sock"
+CONFIG
+    chown root:"$TOMPANEL_GROUP" /etc/tompanel/config.toml
+    chmod 0640 /etc/tompanel/config.toml
+fi
+
+if [ ! -f /etc/tompanel/master.key ]; then
+    umask 077
+    dd if=/dev/urandom of=/etc/tompanel/master.key bs=32 count=1 status=none
+    chown "$TOMPANEL_USER":"$TOMPANEL_GROUP" /etc/tompanel/master.key
+    chmod 0400 /etc/tompanel/master.key
+fi
+
+chown "$TOMPANEL_USER":"$TOMPANEL_GROUP" /var/lib/tompanel
+
+# Apply embedded SQLite migrations as the service account.
+if command -v /usr/lib/tompanel/tompanel >/dev/null 2>&1; then
+    sudo -u "$TOMPANEL_USER" /usr/lib/tompanel/tompanel -config /etc/tompanel/config.toml migrate || true
+fi
+
+systemctl daemon-reload
+systemctl enable --now tompanel-agent.service tompanel.service
+
+exit 0

@@ -1,0 +1,23 @@
+[Unit]
+Description=TomPanel privileged agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/lib/tompanel/tompanel-agent -config /etc/tompanel/config.toml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETUID CAP_SETGID
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

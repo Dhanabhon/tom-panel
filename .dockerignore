@@ -12,3 +12,7 @@
 !web/**
 !tests
 !tests/**
+!packaging
+!packaging/**
+!scripts
+!scripts/**

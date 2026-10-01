@@ -1,0 +1,29 @@
+[Unit]
+Description=TomPanel web control panel
+After=network.target mariadb.service
+Requires=tompanel-agent.socket
+
+[Service]
+Type=simple
+User=tompanel
+Group=tompanel
+ExecStart=/usr/lib/tompanel/tompaneld -config /etc/tompanel/config.toml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tompanel /var/backups/tompanel /run/tompanel
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

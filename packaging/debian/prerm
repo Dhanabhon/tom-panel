@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stop TomPanel services before removal; data is preserved.
+set -eu
+
+if [ "$1" = "remove" ] || [ "$1" = "deconfigure" ]; then
+    systemctl stop tompanel.service tompanel-agent.service 2>/dev/null || true
+fi
+
+exit 0

@@ -1,0 +1,33 @@
+name: ubuntu-integration
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  docker-verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Ubuntu 24.04 verification build
+        run: ./scripts/test-docker.sh
+
+  browser-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install browsers
+        run: |
+          npm --prefix tests/browser ci
+          npx --prefix tests/browser playwright install --with-deps chromium
+      - name: Smoke specs
+        run: npm --prefix tests/browser test
+        env:
+          TOMPANEL_TEST_URL: ""
