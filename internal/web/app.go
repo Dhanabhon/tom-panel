@@ -2,12 +2,15 @@ package web
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
@@ -148,6 +151,18 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	releaseKey, err := pinnedReleaseKey()
+	if err != nil {
+		return nil, err
+	}
+	updater := operations.NewUpdater(database, agent.Call, releaseKey)
+	if err := updater.Register(manager); err != nil {
+		return nil, err
+	}
+	updateRoutes, err := NewUpdateHandlers(service, updater, manager)
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -225,6 +240,11 @@ func New(cfg config.Config) (*App, error) {
 		"POST /settings/s3/test", "POST /settings/smtp/test",
 	} {
 		mux.Handle(pattern, settingsRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"POST /updates/tompanel", "POST /updates/packages", "POST /updates/tools",
+	} {
+		mux.Handle(pattern, updateRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())
@@ -319,4 +339,18 @@ func serverName() string {
 		return "TomPanel server"
 	}
 	return name
+}
+
+// pinnedReleaseKey reads the Ed25519 release verification key. Updates stay
+// disabled until the operator installs the published key.
+func pinnedReleaseKey() (ed25519.PublicKey, error) {
+	encoded := strings.TrimSpace(os.Getenv("TOMPANEL_RELEASE_KEY"))
+	if encoded == "" {
+		return ed25519.PublicKey{}, nil
+	}
+	decoded, err := hex.DecodeString(encoded)
+	if err != nil || len(decoded) != ed25519.PublicKeySize {
+		return nil, errors.New("release key is malformed")
+	}
+	return ed25519.PublicKey(decoded), nil
 }
