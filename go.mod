@@ -2,6 +2,8 @@ module github.com/Dhanabhon/tom-panel
 
 go 1.26.0
 
+toolchain go1.26.6
+
 require (
 	filippo.io/age v1.3.2
 	github.com/aws/aws-sdk-go-v2 v1.47.1
