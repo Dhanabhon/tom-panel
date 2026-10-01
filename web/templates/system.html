@@ -1,0 +1,33 @@
+{{define "system"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Server / System</span><strong class="mono">{{.ServerName}}</strong></div></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Read-only health</p><h1>System</h1><p>Current resource use without stored time series. Update actions live in their own guided flows.</p></div></header>
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+      <section class="resource-strip" aria-label="Server metrics">
+        <div class="resource"><span>CPU</span><strong>{{printf "%.1f" .Snapshot.CPUPercent}}%</strong></div>
+        <div class="resource"><span>Memory</span><strong>{{.Snapshot.MemoryUsedMB}} / {{.Snapshot.MemoryTotalMB}} MB</strong></div>
+        <div class="resource"><span>Swap</span><strong>{{.Snapshot.SwapUsedMB}} / {{.Snapshot.SwapTotalMB}} MB</strong></div>
+        <div class="resource"><span>State disk</span><strong>{{printf "%.1f" .Snapshot.DiskUsedGB}} / {{printf "%.1f" .Snapshot.DiskTotalGB}} GB</strong></div>
+        <div class="resource"><span>Load</span><strong>{{printf "%.2f" .Snapshot.Load1}} {{printf "%.2f" .Snapshot.Load5}} {{printf "%.2f" .Snapshot.Load15}}</strong></div>
+        <div class="resource"><span>Uptime</span><strong>{{printf "%.0f" .Snapshot.UptimeHours}} h</strong></div>
+      </section>
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Platform state</h2>
+          <p>Security updates: <strong>{{.UpdateState}}</strong> — official security updates follow the operating system policy.</p>
+          <p>Reboot required: <strong>{{if .RebootRequired}}yes{{else}}no{{end}}</strong></p>
+          <p>Firewall: <strong>{{if .FirewallActive}}active{{else}}inactive{{end}}</strong></p>
+          <p class="hint">Distribution upgrades are not supported. Panel updates run through the signed release flow with full rollback.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

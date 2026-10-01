@@ -19,6 +19,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/domains"
 	"github.com/Dhanabhon/tom-panel/internal/files"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
+	"github.com/Dhanabhon/tom-panel/internal/operations"
 	panelruntime "github.com/Dhanabhon/tom-panel/internal/runtime"
 	"github.com/Dhanabhon/tom-panel/internal/sites"
 	"github.com/Dhanabhon/tom-panel/internal/store"
@@ -124,6 +125,12 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	operationsService := operations.NewServiceManager(database, agent.Call)
+	operationsLogs := operations.NewLogReader(agent.Call)
+	operationsRoutes, err := NewOperationsHandlers(service, repository, database, operationsService, operationsLogs, manager, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -188,6 +195,12 @@ func New(cfg config.Config) (*App, error) {
 		"POST /sites/{siteID}/delete",
 	} {
 		mux.Handle(pattern, backupRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"GET /services", "POST /services/{key}/restart",
+		"GET /activity", "GET /system", "GET /sites/{siteID}/logs",
+	} {
+		mux.Handle(pattern, operationsRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())

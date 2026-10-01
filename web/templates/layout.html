@@ -18,6 +18,9 @@
     <a class="nav-link{{if eq .CurrentNav "dashboard"}} active{{end}}" href="/"{{if eq .CurrentNav "dashboard"}} aria-current="page"{{end}}>Dashboard</a>
     <a class="nav-link{{if eq .CurrentNav "sites"}} active{{end}}" href="/sites"{{if eq .CurrentNav "sites"}} aria-current="page"{{end}}>Sites</a>
     <a class="nav-link{{if eq .CurrentNav "domains"}} active{{end}}" href="/domains"{{if eq .CurrentNav "domains"}} aria-current="page"{{end}}>Domains &amp; SSL</a>
+    <a class="nav-link{{if eq .CurrentNav "services"}} active{{end}}" href="/services"{{if eq .CurrentNav "services"}} aria-current="page"{{end}}>Services</a>
+    <a class="nav-link{{if eq .CurrentNav "activity"}} active{{end}}" href="/activity"{{if eq .CurrentNav "activity"}} aria-current="page"{{end}}>Activity</a>
+    <a class="nav-link{{if eq .CurrentNav "system"}} active{{end}}" href="/system"{{if eq .CurrentNav "system"}} aria-current="page"{{end}}>System</a>
     <div class="server-mini">
       <span class="muted">Server</span>
       <strong class="mono">{{.ServerName}}</strong>
@@ -36,6 +39,6 @@
   <a class="tab{{if eq .CurrentTab "databases"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/databases">Databases</a>
   <a class="tab{{if eq .CurrentTab "applications"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/applications">Applications</a>
   <a class="tab{{if eq .CurrentTab "backups"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/backups">Backups</a>
-  <span class="tab disabled" aria-disabled="true" title="Available in a later release">Logs</span>
+  <a class="tab{{if eq .CurrentTab "logs"}} active" aria-current="page{{end}}" href="/sites/{{.Site.ID}}/logs">Logs</a>
 </nav>
 {{end}}

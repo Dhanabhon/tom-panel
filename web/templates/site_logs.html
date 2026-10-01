@@ -1,0 +1,39 @@
+{{define "site_logs"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Logs</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "site-tabs" .}}
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Bounded reads</p><h1>Logs</h1><p>TomPanel-owned sources only, capped at 400 lines per read with inline secrets redacted.</p></div></header>
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+      <section class="panel">
+        <div class="panel-body">
+          <form class="form-stack" method="get" action="/sites/{{.Site.ID}}/logs">
+            <div class="form-grid">
+              <label class="field">Source<select name="source">
+                <option value="app"{{if eq .Source "app"}} selected{{end}}>Application</option>
+                <option value="nginx"{{if eq .Source "nginx"}} selected{{end}}>Nginx (filtered to this site)</option>
+              </select></label>
+              <label class="field">Search<input name="search" type="text" value="{{.Search}}" placeholder="error"></label>
+            </div>
+            <div class="form-actions"><button class="btn" type="submit">Read logs</button></div>
+          </form>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-body">
+          {{if .Events}}
+          <pre class="mono log-view">{{range .Events}}{{.Line}}
+{{end}}</pre>
+          {{else}}<p class="empty">No matching log lines.</p>{{end}}
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

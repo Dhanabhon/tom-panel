@@ -1,0 +1,42 @@
+{{define "services"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Server / Services</span><strong class="mono">{{.ServerName}}</strong></div></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Guarded controls</p><h1>Services</h1><p>Only TomPanel-managed units appear here. Restarts require recent re-authentication and show their site impact first.</p></div></header>
+      {{if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+      <section class="panel">
+        <div class="panel-body">
+          {{if .Services}}
+          <table class="table">
+            <thead><tr><th>Service</th><th>Unit</th><th>State</th><th>Impacted sites</th><th></th></tr></thead>
+            <tbody>
+              {{range .Services}}
+              <tr>
+                <td><strong>{{.Key}}</strong></td>
+                <td><span class="mono">{{.Unit}}</span></td>
+                <td><span class="badge {{if .Active}}good{{else}}neutral{{end}}">{{.State}}</span></td>
+                <td>{{if .ImpactedSites}}{{range .ImpactedSites}}<span class="mono">{{.}}</span> {{end}}{{else}}—{{end}}</td>
+                <td class="row-actions">
+                  <form method="post" action="/services/{{.Key}}/restart">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <button class="link" type="submit" data-confirm="Restart {{.Unit}}? {{len .ImpactedSites}} site(s) will be interrupted briefly.">Restart</button>
+                  </form>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+          {{else}}<p class="empty">No managed services discovered.</p>{{end}}
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

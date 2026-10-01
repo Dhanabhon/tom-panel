@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 )
@@ -374,6 +376,33 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, deleteBackupBody(ctx, input))
+	case "service.inspect":
+		var input serviceUnitInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := inspectService(ctx, input, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			command := exec.CommandContext(ctx, name, args...)
+			return command.CombinedOutput()
+		})
+		return operationResult(result, err)
+	case "service.restart", "service.start", "service.stop":
+		var input serviceUnitInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		action := strings.TrimPrefix(request.Operation, "service.")
+		return operationResult(struct{}{}, serviceAction(ctx, input, action, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			command := exec.CommandContext(ctx, name, args...)
+			return command.CombinedOutput()
+		}))
+	case "log.read":
+		var input logReadInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := readLog(ctx, input)
+		return operationResult(result, err)
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}

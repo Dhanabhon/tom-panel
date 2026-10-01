@@ -65,12 +65,15 @@ func TestSiteNavigationShowsApprovedTabs(t *testing.T) {
 	if !strings.Contains(body, `href="/sites/`+site.ID+`/applications"`) {
 		t.Fatal("applications tab not linked")
 	}
-	// Backups ships with the operations slice; Logs stays unavailable.
+	// Backups and Logs ship with the operations slice.
 	if !strings.Contains(body, `href="/sites/`+site.ID+`/backups"`) {
 		t.Fatal("backups tab not linked")
 	}
-	if strings.Contains(body, `href="/sites/`+site.ID+`/logs"`) {
-		t.Fatal("logs tab rendered as a working link")
+	if !strings.Contains(body, `href="/sites/`+site.ID+`/logs"`) {
+		t.Fatal("logs tab not linked")
+	}
+	if strings.Contains(body, "Available in a later release") {
+		t.Fatal("placeholder tabs still rendered")
 	}
 }
 
