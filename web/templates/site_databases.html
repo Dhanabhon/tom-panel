@@ -1,0 +1,122 @@
+{{define "site_databases"}}
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+  {{template "navigation" .}}
+  <div class="page">
+    <header class="topbar"><div><span class="crumb">Sites / Databases</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    <main class="content">
+      <header class="page-head"><div><p class="eyebrow">Site-scoped MariaDB</p><h1>Databases</h1><p>Each database is owned by this site with its own users. Secrets are shown exactly once.</p></div></header>
+      {{if .OneTimeCredential}}<p class="notice" data-notice><strong>{{if eq .OneTimeCredential.Database "phpmyadmin"}}Basic Auth password{{else}}Database password{{end}}</strong><span class="mono" data-one-time-password>{{.OneTimeCredential.Password}}</span><span>{{.Notice}}</span></p>{{else if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
+      {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Create database</h2>
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/databases/create">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="field">Name suffix<input name="suffix" type="text" placeholder="shop" pattern="[a-z0-9_]{1,16}" required><small>Lowercase letters, digits, and underscores. The stored name is derived from this site.</small></label>
+            <div class="form-actions"><button class="btn primary" type="submit">Create database</button><small>Requires recent re-authentication.</small></div>
+          </form>
+        </div>
+      </section>
+
+      {{if .Databases}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Databases</h2>
+          <table class="table">
+            <thead><tr><th>Name</th><th>Generation</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody>
+              {{range .Databases}}
+              <tr>
+                <td><span class="mono">{{.Name}}</span></td>
+                <td>{{.ActiveGeneration}}</td>
+                <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+                <td class="row-actions">
+                  <form class="inline" method="post" action="/sites/{{$.Site.ID}}/databases/rotate">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="suffix" type="hidden" value="{{.Suffix}}">
+                    <label class="check-row inline"><input type="checkbox" name="update_app" checked><span>Update app</span></label>
+                    <button class="link" type="submit">Rotate credential</button>
+                  </form>
+                  <form class="inline" method="post" action="/sites/{{$.Site.ID}}/databases/backup">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="suffix" type="hidden" value="{{.Suffix}}">
+                    <button class="link" type="submit">Back up</button>
+                  </form>
+                  <form class="inline" method="post" action="/sites/{{$.Site.ID}}/databases/delete">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="suffix" type="hidden" value="{{.Suffix}}">
+                    <button class="link danger" type="submit" data-confirm="Delete {{.Name}} and all of its users permanently?">Delete</button>
+                  </form>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {{end}}
+
+      {{if .Backups}}
+      <section class="panel">
+        <div class="panel-body">
+          <h2>Backups</h2>
+          <table class="table">
+            <thead><tr><th>Database</th><th>Size</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+              {{range .Backups}}
+              <tr>
+                <td><span class="mono">{{.Database}}</span></td>
+                <td>{{.SizeBytes}} B</td>
+                <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+                <td class="row-actions">
+                  <form class="inline" method="post" action="/sites/{{$.Site.ID}}/databases/restore">
+                    <input name="csrf_token" type="hidden" value="{{$.CSRFToken}}">
+                    <input name="backup" type="hidden" value="{{.ID}}">
+                    <input name="suffix" type="hidden" value="{{.Suffix}}">
+                    <button class="link" type="submit" data-confirm="Overwrite the current database with this backup?">Restore</button>
+                  </form>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {{end}}
+
+      <section class="panel">
+        <div class="panel-body">
+          <h2>phpMyAdmin</h2>
+          {{if .Endpoint}}
+          <p>Endpoint active in <strong>{{.Endpoint.Mode}}</strong> mode{{if .Endpoint.Hostname}} on <span class="mono">{{.Endpoint.Hostname}}</span>{{end}}{{if .Endpoint.Port}} port <span class="mono">{{.Endpoint.Port}}</span>{{end}}.</p>
+          {{if eq .Endpoint.Mode "private"}}<p class="hint">Private mode serves loopback only. Reach it through your SSH tunnel.</p>{{end}}
+          <form method="post" action="/sites/{{.Site.ID}}/databases/phpmyadmin/disable">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <div class="form-actions"><button class="btn danger" type="submit" data-confirm="Remove the phpMyAdmin endpoint?">Disable phpMyAdmin</button></div>
+          </form>
+          {{else}}
+          <form class="form-stack" method="post" action="/sites/{{.Site.ID}}/databases/phpmyadmin">
+            <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
+            <label class="field">Mode<select name="mode">
+              <option value="private" selected>Private (SSH tunnel, recommended)</option>
+              <option value="public_subdomain">Public subdomain (HTTPS)</option>
+              <option value="public_port">Public port (HTTPS)</option>
+            </select></label>
+            <div class="form-grid">
+              <label class="field">Hostname<input name="hostname" type="text" placeholder="db.example.com"></label>
+              <label class="field">Port<input name="port" type="number" min="1" max="65535" placeholder="8443"></label>
+            </div>
+            <div class="form-actions"><button class="btn primary" type="submit">Enable phpMyAdmin</button><small>Public modes add rate limits and an independent Basic Auth gate.</small></div>
+          </form>
+          {{end}}
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
+{{end}}

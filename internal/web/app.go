@@ -13,6 +13,7 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/config"
+	"github.com/Dhanabhon/tom-panel/internal/databases"
 	"github.com/Dhanabhon/tom-panel/internal/domains"
 	"github.com/Dhanabhon/tom-panel/internal/files"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
@@ -83,6 +84,11 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	databaseService := databases.NewService(database, agent.Call)
+	databaseRoutes, err := NewDatabaseHandlers(service, repository, databaseService, serverName())
+	if err != nil {
+		return nil, err
+	}
 	staticFS, err := fs.Sub(webassets.FS, "static")
 	if err != nil {
 		return nil, err
@@ -115,6 +121,15 @@ func New(cfg config.Config) (*App, error) {
 		"POST /sites/{siteID}/access/sftp/password", "POST /sites/{siteID}/access/sftp/keys/add", "POST /sites/{siteID}/access/sftp/keys/remove",
 	} {
 		mux.Handle(pattern, fileRoutes.Handler())
+	}
+	for _, pattern := range []string{
+		"GET /sites/{siteID}/databases",
+		"POST /sites/{siteID}/databases/create", "POST /sites/{siteID}/databases/rotate",
+		"POST /sites/{siteID}/databases/delete", "POST /sites/{siteID}/databases/backup",
+		"POST /sites/{siteID}/databases/restore", "POST /sites/{siteID}/databases/phpmyadmin",
+		"POST /sites/{siteID}/databases/phpmyadmin/disable",
+	} {
+		mux.Handle(pattern, databaseRoutes.Handler())
 	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", securityHeaders(http.FileServerFS(staticFS))))
 	mux.Handle("/", dashboard.Handler())

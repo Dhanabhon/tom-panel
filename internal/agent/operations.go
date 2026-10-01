@@ -130,6 +130,63 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, removeSFTPKey(ctx, input))
+	case "mariadb.ensure_database":
+		var input mariadbDatabaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, ensureMariaDBDatabase(ctx, input, defaultMariaDBEnvironment()))
+	case "mariadb.rotate_user":
+		var input mariadbRotateInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, rotateMariaDBUser(ctx, input, defaultMariaDBEnvironment()))
+	case "mariadb.verify_credential":
+		var input mariadbCredentialInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, verifyMariaDBCredential(ctx, input, defaultMariaDBEnvironment()))
+	case "mariadb.dump":
+		var input mariadbDatabaseInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := dumpMariaDBDatabase(ctx, input, defaultMariaDBEnvironment())
+		return operationResult(result, err)
+	case "mariadb.restore":
+		var input mariadbRestoreInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, restoreMariaDBDatabase(ctx, input, defaultMariaDBEnvironment()))
+	case "mariadb.drop_database":
+		var input mariadbDropInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, dropMariaDBDatabase(ctx, input, defaultMariaDBEnvironment()))
+	case "phpmyadmin.install":
+		var input phpmyadminInstallInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := installPHPMyAdmin(ctx, input, defaultPHPMyAdminEnvironment())
+		return operationResult(result, err)
+	case "phpmyadmin.activate":
+		var input phpmyadminActivateInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := activatePHPMyAdmin(ctx, input, defaultPHPMyAdminEnvironment())
+		return operationResult(result, err)
+	case "phpmyadmin.disable":
+		var input phpmyadminDisableInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		return operationResult(struct{}{}, disablePHPMyAdmin(ctx, input, defaultPHPMyAdminEnvironment()))
 	default:
 		return nil, &agentapi.Error{Code: "operation_not_allowed", Message: "operation is not allowed"}
 	}
