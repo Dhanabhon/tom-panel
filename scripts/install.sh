@@ -11,7 +11,9 @@ note() { echo "==> $1"; }
 [ "$(uname -m)" = "x86_64" ] || fail "only AMD64 is supported"
 # shellcheck source=/dev/null
 . /etc/os-release
-[ "$ID" = "ubuntu" ] && [ "$VERSION_ID" = "24.04" ] || fail "only Ubuntu Server 24.04 LTS is supported"
+if [ "$ID" != "ubuntu" ] || [ "$VERSION_ID" != "24.04" ]; then
+    fail "only Ubuntu Server 24.04 LTS is supported"
+fi
 
 # Conflict checks: an existing panel or foreign web stack stops the install.
 [ -d /etc/tompanel ] && fail "/etc/tompanel already exists; this host is not fresh"
