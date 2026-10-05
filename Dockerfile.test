@@ -10,7 +10,7 @@ ENV PATH=/usr/local/go/bin:$PATH
 COPY --from=go-toolchain /usr/local/go /usr/local/go
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev nginx nodejs php8.3-fpm \
+    && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev nginx nodejs php8.3-fpm shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
