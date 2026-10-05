@@ -136,3 +136,16 @@ func TestInstallerSupportsPreflightCheck(t *testing.T) {
 		t.Fatal("preflight success message missing")
 	}
 }
+
+func TestChangelogDocumentsFirstRelease(t *testing.T) {
+	changelog := readFile(t, "CHANGELOG.md")
+	for _, want := range []string{
+		"## [0.1.0]",
+		"Early access",
+		"[0.1.0]: https://github.com/Dhanabhon/tom-panel/releases/tag/v0.1.0",
+	} {
+		if !strings.Contains(changelog, want) {
+			t.Fatalf("changelog missing %q", want)
+		}
+	}
+}

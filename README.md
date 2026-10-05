@@ -169,3 +169,5 @@ that contains important data.
 ## License
 
 [MIT](LICENSE)
+
+Release history is documented in [CHANGELOG.md](CHANGELOG.md).

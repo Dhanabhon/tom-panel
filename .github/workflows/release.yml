@@ -23,9 +23,14 @@ jobs:
           cp dist/tompanel_${VERSION}_amd64.deb /tmp/first.deb
           ./scripts/build-deb.sh "${VERSION}"
           cmp /tmp/first.deb dist/tompanel_${VERSION}_amd64.deb
+      - name: Extract release notes from the changelog
+        run: |
+          awk -v sec="## [${VERSION}]" 'index($0, sec)==1 {flag=1; next} /^## \[/ {flag=0} flag' CHANGELOG.md > release-body.md
+          test -s release-body.md || cp CHANGELOG.md release-body.md
       - name: Attach artifacts
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-body.md
           files: |
             dist/tompanel_${VERSION}_amd64.deb
             dist/tompanel_${VERSION}_amd64.deb.sha256
