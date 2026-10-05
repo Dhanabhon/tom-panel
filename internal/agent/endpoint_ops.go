@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Dhanabhon/tom-panel/internal/backups"
@@ -55,7 +56,16 @@ func activatePanelEndpoint(ctx context.Context, input endpointActivateInput, env
 	if err != nil {
 		return err
 	}
-	return activatePHPMyAdminConfig(ctx, panelEndpointConf, config, env)
+	if err := activatePHPMyAdminConfig(ctx, panelEndpointConf, config, env); err != nil {
+		return err
+	}
+	// Public exposure needs its port open; private mode stays loopback-only.
+	// The rule deliberately survives endpoint rollback so a flapping health
+	// check does not churn the firewall.
+	if input.Config.Mode == "public" {
+		return runCommand(ctx, "/usr/sbin/ufw", "allow", strconv.Itoa(int(input.Config.Port))+"/tcp", "comment", "TomPanel:panel-endpoint")
+	}
+	return nil
 }
 
 type integrationTestS3Input struct {

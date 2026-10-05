@@ -29,6 +29,7 @@ type EndpointConfig struct {
 	Hostname        string `json:"hostname,omitempty"`
 	Port            uint16 `json:"port,omitempty"`
 	CloudflareProxy bool   `json:"cloudflare_proxy,omitempty"`
+	AcmeEmail       string `json:"acme_email,omitempty"`
 }
 
 var endpointHostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$`)
@@ -62,6 +63,9 @@ func ValidateEndpoint(config EndpointConfig, reservedHostnames []string) error {
 	if config.Port == 0 || config.Port == 80 {
 		return fmt.Errorf("%w: public endpoints are HTTPS only", ErrEndpointInvalid)
 	}
+	if email := strings.TrimSpace(config.AcmeEmail); email == "" || len(email) > 254 || !strings.Contains(email, "@") {
+		return fmt.Errorf("%w: acme email", ErrEndpointInvalid)
+	}
 	return nil
 }
 
@@ -74,7 +78,7 @@ type endpointJobInput struct {
 type EndpointChanger struct {
 	store   *store.Store
 	agent   func(ctx context.Context, operation string, input, output any) error
-	issue   func(ctx context.Context, hostname string, proxy bool) error
+	issue   func(ctx context.Context, config EndpointConfig) error
 	health  func(ctx context.Context, hostname string, port uint16) error
 	now     func() time.Time
 	current func(ctx context.Context) (EndpointConfig, error)
@@ -88,7 +92,7 @@ func NewEndpointChanger(database *store.Store, agentCall func(ctx context.Contex
 	}
 	return &EndpointChanger{
 		store: database, agent: call, now: time.Now,
-		issue: func(context.Context, string, bool) error { return nil },
+		issue: func(context.Context, EndpointConfig) error { return nil },
 		health: func(ctx context.Context, hostname string, port uint16) error {
 			dialer := net.Dialer{Timeout: 10 * time.Second}
 			connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(hostname, fmt.Sprint(port)))
@@ -118,7 +122,7 @@ func NewEndpointChanger(database *store.Store, agentCall func(ctx context.Contex
 }
 
 // SetCertificateIssuer installs the certificate provisioning hook.
-func (c *EndpointChanger) SetCertificateIssuer(issue func(ctx context.Context, hostname string, proxy bool) error) {
+func (c *EndpointChanger) SetCertificateIssuer(issue func(ctx context.Context, config EndpointConfig) error) {
 	if issue != nil {
 		c.issue = issue
 	}
@@ -179,7 +183,7 @@ func (c *EndpointChanger) build(input json.RawMessage, config, previous Endpoint
 				if config.Mode != "public" {
 					return nil, nil
 				}
-				return nil, c.issue(ctx, config.Hostname, config.CloudflareProxy)
+				return nil, c.issue(ctx, config)
 			}},
 			{Key: "activate", Run: func(ctx context.Context) (json.RawMessage, error) {
 				return nil, c.agent(ctx, "endpoint.activate", struct {

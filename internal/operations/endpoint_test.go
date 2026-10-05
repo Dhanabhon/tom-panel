@@ -48,7 +48,7 @@ func TestCloudflareProxyRejectsUnsupportedPort(t *testing.T) {
 		t.Fatalf("got %v, want ErrCloudflarePort", err)
 	}
 	for _, port := range []uint16{443, 8443} {
-		if err := ValidateEndpoint(EndpointConfig{Mode: "public", Hostname: "panel.example.com", Port: port, CloudflareProxy: true}, nil); err != nil {
+		if err := ValidateEndpoint(EndpointConfig{Mode: "public", Hostname: "panel.example.com", Port: port, CloudflareProxy: true, AcmeEmail: "tom@example.com"}, nil); err != nil {
 			t.Fatalf("supported port %d rejected: %v", port, err)
 		}
 	}
@@ -64,8 +64,11 @@ func TestEndpointRejectsSiteHostname(t *testing.T) {
 	if !errors.Is(err, ErrEndpointHostname) {
 		t.Fatalf("got %v, want ErrEndpointHostname", err)
 	}
-	if err := ValidateEndpoint(EndpointConfig{Mode: "public", Hostname: "panel.example.com", Port: 443}, reserved); err != nil {
+	if err := ValidateEndpoint(EndpointConfig{Mode: "public", Hostname: "panel.example.com", Port: 443, AcmeEmail: "tom@example.com"}, reserved); err != nil {
 		t.Fatalf("safe hostname rejected: %v", err)
+	}
+	if err := ValidateEndpoint(EndpointConfig{Mode: "public", Hostname: "panel.example.com", Port: 443}, reserved); !errors.Is(err, ErrEndpointInvalid) {
+		t.Fatalf("missing acme email accepted: %v", err)
 	}
 }
 
@@ -103,14 +106,14 @@ func TestEndpointChangeKeepsOldRouteUntilHealthy(t *testing.T) {
 	database := endpointStore(t)
 	agent := &endpointAgent{}
 	changer := NewEndpointChanger(database, agent.call)
-	changer.SetCertificateIssuer(func(context.Context, string, bool) error { return nil })
+	changer.SetCertificateIssuer(func(context.Context, EndpointConfig) error { return nil })
 	changer.health = func(context.Context, string, uint16) error { return nil }
 	manager := jobs.NewManager(database)
 	if err := changer.Register(manager); err != nil {
 		t.Fatal(err)
 	}
 	definition, err := changer.BuildEndpointChangeJob(context.Background(), EndpointConfig{
-		Mode: "public", Hostname: "panel.example.com", Port: 443,
+		Mode: "public", Hostname: "panel.example.com", Port: 443, AcmeEmail: "tom@example.com",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -133,10 +136,10 @@ func TestHealthFailureTriggersRollback(t *testing.T) {
 	database := endpointStore(t)
 	agent := &endpointAgent{}
 	changer := NewEndpointChanger(database, agent.call)
-	changer.SetCertificateIssuer(func(context.Context, string, bool) error { return nil })
+	changer.SetCertificateIssuer(func(context.Context, EndpointConfig) error { return nil })
 	changer.health = func(context.Context, string, uint16) error { return errors.New("unreachable") }
 	definition, err := changer.BuildEndpointChangeJob(context.Background(), EndpointConfig{
-		Mode: "public", Hostname: "panel.example.com", Port: 443,
+		Mode: "public", Hostname: "panel.example.com", Port: 443, AcmeEmail: "tom@example.com",
 	})
 	if err != nil {
 		t.Fatal(err)

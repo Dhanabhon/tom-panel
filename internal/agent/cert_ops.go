@@ -17,10 +17,13 @@ import (
 )
 
 const (
-	legoPath        = "/usr/local/bin/lego"
-	acmeRootPath    = "/var/lib/tompanel/acme"
-	certificateRoot = "/etc/tompanel/certificates"
+	legoPath     = "/usr/local/bin/lego"
+	acmeRootPath = "/var/lib/tompanel/acme"
 )
+
+// certificateRoot holds every activated site certificate; a variable so
+// tests can point it at a fixture.
+var certificateRoot = "/etc/tompanel/certificates"
 
 type certificateIssueInput struct {
 	SiteID    string   `json:"site_id"`

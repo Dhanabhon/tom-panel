@@ -92,3 +92,13 @@ if [ -n "$SETUP_URL" ]; then
     echo "One-time setup URL (valid 15 minutes, run on the server):"
     echo "  $SETUP_URL"
 fi
+if [ -n "${PANEL_DOMAIN:-}" ]; then
+    echo
+    echo "Panel domain requested: ${PANEL_DOMAIN}"
+    echo "1) Point DNS for ${PANEL_DOMAIN} at this server (A/AAAA record;"
+    echo "   behind Cloudflare proxy only ports 443 or 8443 work)."
+    echo "2) After first-run setup, open Settings → Panel endpoint, choose"
+    echo "   Public HTTPS, enter ${PANEL_DOMAIN} and an ACME email, then queue"
+    echo "   the change. TomPanel issues the certificate, health-checks the new"
+    echo "   address, and keeps the private route until it is healthy."
+fi

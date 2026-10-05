@@ -317,6 +317,49 @@ func (s *Service) saveCertificate(ctx context.Context, certificate Certificate) 
 	})
 }
 
+// CloudflareConfigured reports whether DNS-01 challenges are available.
+func (s *Service) CloudflareConfigured(ctx context.Context) bool {
+	var count int
+	err := s.store.Tx(ctx, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM dns_integrations").Scan(&count)
+	})
+	return err == nil && count > 0
+}
+
+// IssueEndpointCertificate obtains and activates the TLS certificate for the
+// panel's own public hostname. DNS-01 is used when Cloudflare is configured;
+// otherwise HTTP-01 through the managed ACME webroot. The panel is not a
+// site, so nothing is recorded in the certificates ledger — renewal happens
+// by re-running the endpoint change.
+func (s *Service) IssueEndpointCertificate(ctx context.Context, hostname, email string) error {
+	normalized, err := sites.NormalizeHostname(strings.TrimSpace(hostname))
+	if err != nil {
+		return fmt.Errorf("endpoint hostname is invalid: %w", err)
+	}
+	email = strings.TrimSpace(email)
+	if email == "" || len(email) > 254 || !strings.Contains(email, "@") {
+		return errors.New("endpoint ACME email is invalid")
+	}
+	input := struct {
+		Hostname  string `json:"hostname"`
+		Email     string `json:"email"`
+		Challenge string `json:"challenge"`
+		APIToken  string `json:"api_token,omitempty"`
+	}{Hostname: normalized, Email: email, Challenge: "http-01"}
+	if s.CloudflareConfigured(ctx) {
+		_, token, err := s.cloudflareCredentials(ctx)
+		if err != nil {
+			return fmt.Errorf("read cloudflare credentials: %w", err)
+		}
+		input.Challenge, input.APIToken = "dns-01", token
+	}
+	var issued struct {
+		CertificatePath string `json:"certificate_path"`
+		PrivateKeyPath  string `json:"private_key_path"`
+	}
+	return s.agentCall(ctx, "endpoint.issue_certificate", input, &issued)
+}
+
 func (s *Service) Certificate(ctx context.Context, id string) (Certificate, error) {
 	var certificate Certificate
 	err := s.store.Tx(ctx, func(tx *sql.Tx) error {

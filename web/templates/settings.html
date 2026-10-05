@@ -94,6 +94,7 @@
               <label class="field">Hostname<input name="hostname" type="text" placeholder="panel.example.com"></label>
               <label class="field">Port<input name="port" type="number" min="1" max="65535" placeholder="443"></label>
             </div>
+            <label class="field">ACME email<input name="acme_email" type="email" placeholder="you@example.com"><small>Used to register the certificate for this hostname. DNS-01 is used when Cloudflare is configured; otherwise HTTP-01 through the managed webroot.</small></label>
             <label class="check-row"><input type="checkbox" name="cloudflare_proxy"><span><strong>Behind Cloudflare proxy</strong><small>Limited to ports 443 and 8443.</small></span></label>
             <div class="form-actions"><button class="btn" type="submit">Queue endpoint change</button><small>The current route stays live until the new one passes its health check.</small></div>
           </form>

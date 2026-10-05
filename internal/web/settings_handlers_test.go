@@ -135,7 +135,7 @@ func TestSettingsRejectsInvalidProviders(t *testing.T) {
 func TestEndpointChangeQueuesJobAndRefusesSiteHostname(t *testing.T) {
 	harness, _ := newSettingsHarness(t)
 	harness.stepUp(t)
-	recorder := harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=443")
+	recorder := harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=443&acme_email=tom@example.com")
 	if recorder.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}

@@ -409,6 +409,13 @@ func dispatch(ctx context.Context, request agentapi.Request) (json.RawMessage, *
 			return invalidPayload(request.Operation)
 		}
 		return operationResult(struct{}{}, activatePanelEndpoint(ctx, input, defaultNginxEnvironment()))
+	case "endpoint.issue_certificate":
+		var input endpointIssueInput
+		if err := decodeStrict(request.Payload, &input); err != nil {
+			return invalidPayload(request.Operation)
+		}
+		result, err := issueEndpointCertificate(ctx, input, defaultEndpointCertEnvironment())
+		return operationResult(result, err)
 	case "integration.test_s3":
 		var input integrationTestS3Input
 		if err := decodeStrict(request.Payload, &input); err != nil {

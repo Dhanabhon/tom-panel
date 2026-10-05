@@ -194,6 +194,7 @@ func (h *SettingsHandlers) changeEndpoint(w http.ResponseWriter, r *http.Request
 		config.Hostname = strings.TrimSpace(r.PostForm.Get("hostname"))
 		config.Port = uint16(port)
 		config.CloudflareProxy = r.PostForm.Get("cloudflare_proxy") == "on"
+		config.AcmeEmail = strings.TrimSpace(r.PostForm.Get("acme_email"))
 	}
 	definition, err := h.endpoint.BuildEndpointChangeJob(r.Context(), config)
 	if err != nil {

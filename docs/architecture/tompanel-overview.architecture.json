@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "TomPanel — สถาปัตยกรรมภาพรวม & Tech Stack",
+    "output": "docs/architecture/tompanel-overview.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Dhanabhon/tom-panel",
+      "revision": "8dfa45e6c0119fd8c1749c81bbfb076daef2fcf0"
+    },
+    "views": [
+      {
+        "id": "management-path",
+        "label": "เส้นทางบริหารระบบ",
+        "focus": [
+          "admin",
+          "tompaneld",
+          "agent",
+          "sqlite"
+        ],
+        "note": "จากเบราว์เซอร์ผ่าน SSH tunnel สู่ panel แบบ unprivileged แล้วต่อถึง root helper ผ่าน Unix socket"
+      },
+      {
+        "id": "site-stack",
+        "label": "กองเว็บไซต์",
+        "focus": [
+          "visitors",
+          "nginx",
+          "phpfpm",
+          "mariadb"
+        ],
+        "note": "traffic จริงของเว็บไซต์: Nginx รับแล้วส่งต่อ PHP-FPM รายเว็บ ไปยังฐานข้อมูล MariaDB"
+      },
+      {
+        "id": "backup-ops",
+        "label": "งานเบื้องหลัง & สำรองข้อมูล",
+        "focus": [
+          "tompaneld",
+          "agent",
+          "s3"
+        ],
+        "note": "durable jobs สั่งงาน agent ปฏิบัติ operation และอัปโหลด backup ที่เข้ารหัส age ขึ้น S3"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "visitors",
+      "type": "external",
+      "label": "ผู้เยี่ยมชมเว็บ",
+      "sublabel": "traffic เว็บไซต์",
+      "pos": [
+        40,
+        90
+      ],
+      "size": [
+        136,
+        62
+      ]
+    },
+    {
+      "id": "admin",
+      "type": "external",
+      "label": "ผู้ดูแลระบบ",
+      "sublabel": "เบราว์เซอร์ admin",
+      "pos": [
+        40,
+        270
+      ],
+      "size": [
+        136,
+        66
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "frontend",
+      "label": "Nginx",
+      "sublabel": "managed sites · :80/:443",
+      "sources": [
+        {
+          "path": "internal/agent/site_ops.go",
+          "label": "site lifecycle"
+        }
+      ],
+      "pos": [
+        260,
+        90
+      ],
+      "size": [
+        150,
+        62
+      ]
+    },
+    {
+      "id": "phpfpm",
+      "type": "backend",
+      "label": "PHP-FPM",
+      "sublabel": "pool รายเว็บไซต์",
+      "sources": [
+        {
+          "path": "internal/runtime/php.go",
+          "label": "runtime"
+        },
+        {
+          "path": "internal/agent/php_ops.go",
+          "label": "pool ops"
+        }
+      ],
+      "pos": [
+        486,
+        90
+      ],
+      "size": [
+        136,
+        62
+      ]
+    },
+    {
+      "id": "mariadb",
+      "type": "database",
+      "label": "MariaDB",
+      "sublabel": "ฐานข้อมูลรายเว็บ",
+      "tag": "phpMyAdmin",
+      "sources": [
+        {
+          "path": "internal/agent/mariadb_ops.go",
+          "label": "DB ops"
+        }
+      ],
+      "pos": [
+        700,
+        90
+      ],
+      "size": [
+        136,
+        62
+      ]
+    },
+    {
+      "id": "s3",
+      "type": "cloud",
+      "label": "Amazon S3",
+      "sublabel": "backup off-site",
+      "tag": "AWS SDK v2",
+      "sources": [
+        {
+          "path": "internal/agent/backup_ops.go",
+          "label": "backups"
+        },
+        {
+          "path": "internal/agent/age_ops.go",
+          "label": "age encrypt"
+        }
+      ],
+      "pos": [
+        920,
+        90
+      ],
+      "size": [
+        136,
+        62
+      ]
+    },
+    {
+      "id": "tompaneld",
+      "type": "backend",
+      "label": "tompaneld",
+      "sublabel": "web panel · UI · jobs",
+      "tag": "Go 1.26",
+      "sources": [
+        {
+          "path": "internal/web/app.go",
+          "label": "HTTP handlers"
+        },
+        {
+          "path": "internal/jobs/manager.go",
+          "label": "job manager"
+        }
+      ],
+      "pos": [
+        220,
+        270
+      ],
+      "size": [
+        150,
+        66
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "tompanel-agent",
+      "sublabel": "root helper",
+      "tag": "Unix socket",
+      "sources": [
+        {
+          "path": "internal/agent/server.go",
+          "label": "socket server"
+        },
+        {
+          "path": "internal/agent/cert_ops.go",
+          "label": "lego ACME"
+        }
+      ],
+      "pos": [
+        460,
+        270
+      ],
+      "size": [
+        150,
+        66
+      ]
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "state · audit log",
+      "tag": "age-encrypted",
+      "sources": [
+        {
+          "path": "internal/store/store.go",
+          "label": "store"
+        },
+        {
+          "path": "internal/store/crypto.go",
+          "label": "encryption"
+        }
+      ],
+      "pos": [
+        700,
+        270
+      ],
+      "size": [
+        140,
+        62
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Ubuntu Server 24.04 LTS · VPS เครื่องเดียว",
+      "wraps": [
+        "nginx",
+        "phpfpm",
+        "mariadb",
+        "tompaneld",
+        "agent",
+        "sqlite"
+      ],
+      "pad": 14
+    },
+    {
+      "kind": "security-group",
+      "label": "Control plane · unprivileged",
+      "wraps": [
+        "tompaneld"
+      ],
+      "pad": 12
+    },
+    {
+      "kind": "security-group",
+      "label": "Privileged helper · root",
+      "wraps": [
+        "agent"
+      ],
+      "pad": 12
+    }
+  ],
+  "connections": [
+    {
+      "id": "site-traffic",
+      "from": "visitors",
+      "to": "nginx",
+      "label": "HTTP/HTTPS"
+    },
+    {
+      "id": "fastcgi",
+      "from": "nginx",
+      "to": "phpfpm",
+      "label": "FastCGI"
+    },
+    {
+      "id": "app-sql",
+      "from": "phpfpm",
+      "to": "mariadb",
+      "label": "SQL"
+    },
+    {
+      "id": "admin-entry",
+      "from": "admin",
+      "to": "tompaneld",
+      "label": "SSH tunnel / HTTPS",
+      "variant": "emphasis",
+      "labelAt": [
+        140,
+        257
+      ]
+    },
+    {
+      "id": "agent-ops",
+      "from": "tompaneld",
+      "to": "agent",
+      "label": "Unix socket · typed ops",
+      "variant": "security",
+      "labelDy": 58
+    },
+    {
+      "id": "manage-nginx",
+      "from": "agent",
+      "to": "nginx",
+      "label": "provision vhost · reload",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        380,
+        211
+      ]
+    },
+    {
+      "id": "manage-php",
+      "from": "agent",
+      "to": "phpfpm",
+      "label": "provision PHP pool",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        535,
+        200
+      ]
+    },
+    {
+      "id": "manage-db",
+      "from": "agent",
+      "to": "mariadb",
+      "label": "create DB · rotate creds",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "backup-upload",
+      "from": "agent",
+      "to": "s3",
+      "label": "backup (age-encrypted)",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        850,
+        250
+      ]
+    },
+    {
+      "id": "panel-state",
+      "from": "tompaneld",
+      "to": "sqlite",
+      "label": "state · audit log",
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Tech Stack หลัก",
+      "items": [
+        "Go 1.26 ล้วน — stdlib net/http ไม่พึ่ง web framework (tompaneld, tompanel-agent, tompanel CLI)",
+        "SQLite (modernc.org, CGO-free) เข้ารหัสด้วย age + audit log; UI เป็น html/template + vanilla JS แบบ go:embed",
+        "กองเว็บ: Nginx + PHP-FPM รายเว็บ + MariaDB + Redis object cache + phpMyAdmin"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "ขอบเขตสิทธิ์ (Privilege Boundary)",
+      "items": [
+        "tompaneld รัน unprivileged bind loopback เท่านั้น (127.0.0.1:8080) ผ่าน SSH tunnel / reverse proxy",
+        "คุยกับ tompanel-agent (root) ผ่าน Unix socket ยืนยัน peer credential — เบราว์เซอร์ไม่แตะ root helper",
+        "ชุด operation แบบปิด: vhost, cert (lego/ACME), PHP pool, MariaDB, SFTP + ล็อกอิน TOTP/recovery + CSRF"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "งานเบื้องหลัง & การเดินเครื่อง",
+      "items": [
+        "Durable jobs ในตัว (retry, cancel, recovery, live progress) + tompanel CLI: version / doctor ฝั่ง server",
+        "Backup: dump MariaDB → เข้ารหัส age → อัปโหลด S3 ด้วย AWS SDK v2",
+        "SSL ผ่าน lego (ACME / Let's Encrypt), healthz ที่ /healthz และติดตั้งด้วย bootstrap + .deb"
+      ]
+    }
+  ]
+}

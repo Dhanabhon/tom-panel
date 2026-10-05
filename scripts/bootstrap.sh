@@ -27,6 +27,8 @@ Usage: sh tompanel-bootstrap.sh [version] [--offline /path/to.deb] [--check]
   -h, --help           show this help
 
 Environment: TOMPANEL_REPO overrides the GitHub repository (owner/name).
+             PANEL_DOMAIN=panel.example.com prints post-install steps for
+             exposing the panel on that domain with HTTPS.
 EOF
   exit 0
 }
@@ -145,3 +147,10 @@ fi
 echo
 echo "Uninstall later with: apt-get remove tompanel (sites and backups are"
 echo "preserved; see scripts/uninstall.sh in the repository for data removal)."
+if [ -n "${PANEL_DOMAIN:-}" ]; then
+    echo
+    echo "Panel domain: after first-run setup, open Settings → Panel endpoint,"
+    echo "choose Public HTTPS, enter ${PANEL_DOMAIN} and an ACME email, and queue"
+    echo "the change. DNS first: point ${PANEL_DOMAIN} at this server (behind"
+    echo "Cloudflare proxy only ports 443 or 8443 work)."
+fi

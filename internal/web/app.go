@@ -144,6 +144,12 @@ func New(cfg config.Config) (*App, error) {
 		return settings, ok
 	})
 	endpointChanger := operations.NewEndpointChanger(database, agent.Call)
+	// Public panel endpoints get a real certificate through the domains
+	// service: DNS-01 when Cloudflare is configured, HTTP-01 through the
+	// managed ACME webroot otherwise.
+	endpointChanger.SetCertificateIssuer(func(ctx context.Context, config operations.EndpointConfig) error {
+		return domainService.IssueEndpointCertificate(ctx, config.Hostname, config.AcmeEmail)
+	})
 	if err := endpointChanger.Register(manager); err != nil {
 		return nil, err
 	}
