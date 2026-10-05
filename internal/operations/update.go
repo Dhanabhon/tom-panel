@@ -170,9 +170,9 @@ func (u *Updater) Register(manager *jobs.Manager) error {
 
 // PackageUpdate is one confirmed official package set.
 type PackageUpdate struct {
-	Packages   []string
-	Confirmed  bool
-	FromPPA    bool
+	Packages  []string
+	Confirmed bool
+	FromPPA   bool
 }
 
 // BuildPackageJob applies allowlisted official security updates only.

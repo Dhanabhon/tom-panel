@@ -2,6 +2,8 @@ package web
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"html/template"
 	"net/http"
 	"strings"
@@ -10,12 +12,14 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/auth"
 	"github.com/Dhanabhon/tom-panel/internal/jobs"
 	"github.com/Dhanabhon/tom-panel/internal/sites"
+	"github.com/Dhanabhon/tom-panel/internal/store"
 	webassets "github.com/Dhanabhon/tom-panel/web"
 )
 
 type DashboardHandlers struct {
 	auth       *auth.Service
 	jobs       *jobs.Manager
+	database   *store.Store
 	serverName string
 	templates  *template.Template
 	mux        *http.ServeMux
@@ -27,16 +31,30 @@ type loginPageData struct {
 	Setup      bool
 }
 
+// DashboardCounts is one live snapshot of server state; every figure comes
+// from the durable store at render time.
+type DashboardCounts struct {
+	SitesTotal  int
+	SitesActive int
+	SitesFailed int
+	JobsQueued  int
+	JobsRunning int
+	JobsFailed  int
+	Backups     int
+	Quarantined int
+}
+
 type dashboardPageData struct {
 	Title      string
 	ServerName string
 	CSRFToken  string
+	Counts     DashboardCounts
 	Jobs       []jobs.Job
 	SelectedID string
 	CurrentNav string
 }
 
-func NewDashboardHandlers(service *auth.Service, manager *jobs.Manager, serverName string) (*DashboardHandlers, error) {
+func NewDashboardHandlers(service *auth.Service, manager *jobs.Manager, database *store.Store, serverName string) (*DashboardHandlers, error) {
 	if strings.TrimSpace(serverName) == "" {
 		serverName = "TomPanel server"
 	}
@@ -44,7 +62,7 @@ func NewDashboardHandlers(service *auth.Service, manager *jobs.Manager, serverNa
 	if err != nil {
 		return nil, err
 	}
-	h := &DashboardHandlers{auth: service, jobs: manager, serverName: serverName, templates: templates, mux: http.NewServeMux()}
+	h := &DashboardHandlers{auth: service, jobs: manager, database: database, serverName: serverName, templates: templates, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /login", h.login)
 	h.mux.HandleFunc("GET /setup", h.setup)
 	h.mux.HandleFunc("GET /", h.dashboardRoute)
@@ -87,14 +105,45 @@ func (h *DashboardHandlers) dashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dashboard could not be loaded", http.StatusInternalServerError)
 		return
 	}
+	counts, err := h.counts(r.Context())
+	if err != nil {
+		http.Error(w, "dashboard could not be loaded", http.StatusInternalServerError)
+		return
+	}
 	h.render(w, "dashboard", dashboardPageData{
 		Title:      "Dashboard · TomPanel",
 		ServerName: h.serverName,
 		CSRFToken:  session.CSRFToken,
+		Counts:     counts,
 		Jobs:       recent,
 		SelectedID: r.URL.Query().Get("job"),
 		CurrentNav: "dashboard",
 	})
+}
+
+// counts reads the live server snapshot in one transaction.
+func (h *DashboardHandlers) counts(ctx context.Context) (DashboardCounts, error) {
+	var counts DashboardCounts
+	err := h.database.Tx(ctx, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*),
+				COALESCE(SUM(state = 'active'), 0), COALESCE(SUM(state = 'failed'), 0)
+				FROM sites`).Scan(&counts.SitesTotal, &counts.SitesActive, &counts.SitesFailed); err != nil {
+			return err
+		}
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(status = 'queued'), 0),
+				COALESCE(SUM(status = 'running'), 0), COALESCE(SUM(status = 'failed'), 0)
+				FROM jobs`).Scan(&counts.JobsQueued, &counts.JobsRunning, &counts.JobsFailed); err != nil {
+			return err
+		}
+		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM backups").Scan(&counts.Backups); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM site_quarantine").Scan(&counts.Quarantined)
+	})
+	if err != nil {
+		return DashboardCounts{}, err
+	}
+	return counts, nil
 }
 
 func (h *DashboardHandlers) dashboardRoute(w http.ResponseWriter, r *http.Request) {

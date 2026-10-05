@@ -81,7 +81,7 @@ func NewService(database *store.Store, cloudflare CloudflareSaver, agentCall fun
 	}
 	return &Service{
 		store: database, now: time.Now, cloudflare: cloudflare, agent: call,
-		smtpDial: func(ctx context.Context, settings SMTPSettings) error { return smtpHandshake(ctx, settings) },
+		smtpDial:      func(ctx context.Context, settings SMTPSettings) error { return smtpHandshake(ctx, settings) },
 		cloudflareTry: func(ctx context.Context, zoneID, token string) error { return cloudflareVerifyZone(ctx, zoneID, token) },
 	}
 }

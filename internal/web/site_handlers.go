@@ -36,7 +36,7 @@ type sitesPageData struct {
 
 type sitePageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
-	Site                                            sites.Site
+	Site                                                        sites.Site
 }
 
 func NewSiteHandlers(authService *auth.Service, repository *sites.Repository, runtimeService *panelruntime.Service, provisioner *sites.Provisioner, manager *jobs.Manager, serverName string) (*SiteHandlers, error) {

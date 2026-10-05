@@ -29,11 +29,11 @@ type LaravelHandlers struct {
 
 type laravelPageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
-	Site                                            sites.Site
-	SiteKind                                        string
-	Installation                                    *apps.LaravelInstallation
-	Credentials                                     *apps.LaravelOneTimeCredentials
-	Notice, Warning                                 string
+	Site                                                        sites.Site
+	SiteKind                                                    string
+	Installation                                                *apps.LaravelInstallation
+	Credentials                                                 *apps.LaravelOneTimeCredentials
+	Notice, Warning                                             string
 }
 
 // NewLaravelHandlers wires the Laravel routes for one site scope.

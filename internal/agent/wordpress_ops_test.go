@@ -18,8 +18,8 @@ var (
 )
 
 type wpCallLog struct {
-	calls []apps.WPCLICall
-	failOn func(joinedArgs string) bool
+	calls       []apps.WPCLICall
+	failOn      func(joinedArgs string) bool
 	healthFails bool
 }
 
@@ -58,7 +58,9 @@ func TestInstallWordPressRunsBuiltCalls(t *testing.T) {
 }
 
 func TestFailedUpdateRestoresBackup(t *testing.T) {
-	log := &wpCallLog{failOn: func(joined string) bool { return strings.Contains(joined, "core update") && !strings.Contains(joined, "--version") }}
+	log := &wpCallLog{failOn: func(joined string) bool {
+		return strings.Contains(joined, "core update") && !strings.Contains(joined, "--version")
+	}}
 	env := wordpressEnvironment{runWP: log.run, health: func(context.Context, string) error { return nil }}
 	err := updateWordPress(context.Background(), wordpressUpdateInput{WordPressInstallInput: wpTestInput()}, env)
 	if err == nil {
@@ -151,7 +153,7 @@ func TestEnsureWPCLIVerifiesChecksum(t *testing.T) {
 		installRoot: filepath.Join(dir, "wp"),
 		version:     "2.2.0",
 		expectedSHA: "6f4d1a0e8b8f4b9e2e9d4f0f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7",
-		download: func(context.Context) ([]byte, error) { return nil, errors.New("unused") },
+		download:    func(context.Context) ([]byte, error) { return nil, errors.New("unused") },
 	}
 	// wrong checksum
 	env.download = func(context.Context) ([]byte, error) { return phar, nil }

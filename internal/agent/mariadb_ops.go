@@ -147,9 +147,9 @@ type mariadbDropInput struct {
 }
 
 var (
-	databaseNamePattern  = regexp.MustCompile(`^tp_[0-9a-f]{16}_[a-z0-9_]{1,16}$`)
-	databaseUserPattern  = regexp.MustCompile(`^tp_[0-9a-f]{16}_u[0-9]{1,2}$`)
-	siteScopedGrants = "SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES, LOCK TABLES, CREATE TEMPORARY TABLES"
+	databaseNamePattern = regexp.MustCompile(`^tp_[0-9a-f]{16}_[a-z0-9_]{1,16}$`)
+	databaseUserPattern = regexp.MustCompile(`^tp_[0-9a-f]{16}_u[0-9]{1,2}$`)
+	siteScopedGrants    = "SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES, LOCK TABLES, CREATE TEMPORARY TABLES"
 )
 
 func validateDatabaseOwned(siteID, database string) error {

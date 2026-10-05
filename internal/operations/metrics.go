@@ -17,18 +17,18 @@ import (
 // Snapshot is one instantaneous observation of server health. No time series
 // are stored.
 type Snapshot struct {
-	CPUPercent   float64 `json:"cpu_percent"`
-	Load1        float64 `json:"load_1"`
-	Load5        float64 `json:"load_5"`
-	Load15       float64 `json:"load_15"`
-	MemoryUsedMB int     `json:"memory_used_mb"`
-	MemoryTotalMB int    `json:"memory_total_mb"`
-	SwapUsedMB   int     `json:"swap_used_mb"`
-	SwapTotalMB  int     `json:"swap_total_mb"`
-	DiskUsedGB   float64 `json:"disk_used_gb"`
-	DiskTotalGB  float64 `json:"disk_total_gb"`
-	UptimeHours  float64 `json:"uptime_hours"`
-	CollectedAt  time.Time `json:"collected_at"`
+	CPUPercent    float64   `json:"cpu_percent"`
+	Load1         float64   `json:"load_1"`
+	Load5         float64   `json:"load_5"`
+	Load15        float64   `json:"load_15"`
+	MemoryUsedMB  int       `json:"memory_used_mb"`
+	MemoryTotalMB int       `json:"memory_total_mb"`
+	SwapUsedMB    int       `json:"swap_used_mb"`
+	SwapTotalMB   int       `json:"swap_total_mb"`
+	DiskUsedGB    float64   `json:"disk_used_gb"`
+	DiskTotalGB   float64   `json:"disk_total_gb"`
+	UptimeHours   float64   `json:"uptime_hours"`
+	CollectedAt   time.Time `json:"collected_at"`
 }
 
 // ReadSnapshot samples procfs and the state volume. stateRoot tails the disk

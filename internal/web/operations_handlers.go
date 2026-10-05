@@ -56,9 +56,9 @@ type activityPageData struct {
 type siteLogsPageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken string
 	Site                                                 sites.Site
-	Source, Search                                        string
-	Events                                                []operations.LogEvent
-	Warning                                               string
+	Source, Search                                       string
+	Events                                               []operations.LogEvent
+	Warning                                              string
 }
 
 // NewOperationsHandlers wires the operational routes.

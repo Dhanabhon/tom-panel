@@ -32,13 +32,13 @@ var (
 
 // Installation is the persisted WordPress state of a site.
 type Installation struct {
-	ID        string
-	SiteID    string
-	State     string
-	Version   string
-	AdminUser string
+	ID         string
+	SiteID     string
+	State      string
+	Version    string
+	AdminUser  string
 	AdminEmail string
-	Policy    WordPressPolicy
+	Policy     WordPressPolicy
 	SystemCron bool
 	PageCache  bool
 	RedisCache bool

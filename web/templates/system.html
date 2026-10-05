@@ -7,7 +7,7 @@
   <div class="page">
     <header class="topbar"><div><span class="crumb">Server / System</span><strong class="mono">{{.ServerName}}</strong></div></header>
     <main class="content">
-      <header class="page-head"><div><p class="eyebrow">Read-only health</p><h1>System</h1><p>Current resource use without stored time series. Update actions live in their own guided flows.</p></div></header>
+      <header class="page-head"><div><h1>System</h1><p>Current resource use without stored time series. Update actions live in their own guided flows.</p></div></header>
       {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}
       <section class="resource-strip" aria-label="Server metrics">
         <div class="resource"><span>CPU</span><strong>{{printf "%.1f" .Snapshot.CPUPercent}}%</strong></div>

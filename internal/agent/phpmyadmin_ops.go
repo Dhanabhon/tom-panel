@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	phpMyAdminVersion    = "5.2.2"
-	phpMyAdminSHA256     = "d1b6f23f334b1b7b175d78cd9d1cdd7c8a55dcd8a2a2b0c5f2f2f1a4c8e91b70"
-	phpMyAdminDownload   = "https://www.phpmyadmin.net/downloads/phpMyAdmin-" + phpMyAdminVersion + "-all-languages.tar.gz"
+	phpMyAdminVersion     = "5.2.2"
+	phpMyAdminSHA256      = "d1b6f23f334b1b7b175d78cd9d1cdd7c8a55dcd8a2a2b0c5f2f2f1a4c8e91b70"
+	phpMyAdminDownload    = "https://www.phpmyadmin.net/downloads/phpMyAdmin-" + phpMyAdminVersion + "-all-languages.tar.gz"
 	phpMyAdminInstallRoot = "/usr/share/tompanel/phpmyadmin"
-	phpMyAdminAuthRoot   = "/etc/nginx/tompanel-auth"
+	phpMyAdminAuthRoot    = "/etc/nginx/tompanel-auth"
 )
 
 type phpmyadminEnvironment struct {

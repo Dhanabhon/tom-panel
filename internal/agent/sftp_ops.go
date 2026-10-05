@@ -51,8 +51,8 @@ type sftpKeyResult struct {
 }
 
 var allowedSSHKeyTypes = map[string]bool{
-	"ssh-ed25519":        true,
-	"ssh-rsa":            true,
+	"ssh-ed25519":         true,
+	"ssh-rsa":             true,
 	"ecdsa-sha2-nistp256": true,
 	"ecdsa-sha2-nistp384": true,
 	"ecdsa-sha2-nistp521": true,

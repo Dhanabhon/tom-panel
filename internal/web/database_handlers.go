@@ -26,12 +26,12 @@ type DatabaseHandlers struct {
 
 type databasesPageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
-	Site                                            sites.Site
-	Databases                                       []databases.Database
-	Backups                                         []databases.Backup
-	Endpoint                                        *databases.Endpoint
-	OneTimeCredential                               *databases.Credential
-	Notice, Warning                                 string
+	Site                                                        sites.Site
+	Databases                                                   []databases.Database
+	Backups                                                     []databases.Backup
+	Endpoint                                                    *databases.Endpoint
+	OneTimeCredential                                           *databases.Credential
+	Notice, Warning                                             string
 }
 
 // NewDatabaseHandlers wires the database routes for one site scope.

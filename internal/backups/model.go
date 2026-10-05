@@ -25,25 +25,25 @@ const (
 type Storage string
 
 const (
-	StorageLocal    Storage = "local"
-	StorageS3       Storage = "s3"
-	StorageLocalS3  Storage = "local+s3"
+	StorageLocal   Storage = "local"
+	StorageS3      Storage = "s3"
+	StorageLocalS3 Storage = "local+s3"
 )
 
 // Backup is one persisted archive record.
 type Backup struct {
-	ID        string    `json:"id"`
-	SiteID    string    `json:"site_id"`
-	Kind      Kind      `json:"kind"`
-	Storage   Storage   `json:"storage"`
-	State     string    `json:"state"`
-	AgentPath string    `json:"agent_path,omitempty"`
-	ObjectKey string    `json:"object_key,omitempty"`
-	SizeBytes int64     `json:"size_bytes"`
-	SHA256    string    `json:"sha256"`
-	Manifest  []byte    `json:"-"`
-	Protected bool      `json:"protected"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string     `json:"id"`
+	SiteID    string     `json:"site_id"`
+	Kind      Kind       `json:"kind"`
+	Storage   Storage    `json:"storage"`
+	State     string     `json:"state"`
+	AgentPath string     `json:"agent_path,omitempty"`
+	ObjectKey string     `json:"object_key,omitempty"`
+	SizeBytes int64      `json:"size_bytes"`
+	SHA256    string     `json:"sha256"`
+	Manifest  []byte     `json:"-"`
+	Protected bool       `json:"protected"`
+	CreatedAt time.Time  `json:"created_at"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
@@ -63,10 +63,10 @@ var (
 )
 
 const (
-	diskGuardRatio  = 0.85
-	diskGuardFree   = 2 << 30
+	diskGuardRatio    = 0.85
+	diskGuardFree     = 2 << 30
 	retainedScheduled = 7
-	quarantineDays  = 7
+	quarantineDays    = 7
 )
 
 // CheckDisk applies the backup disk guard: stop above 85% use or below 2 GiB.

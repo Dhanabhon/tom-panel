@@ -8,7 +8,7 @@
     <header class="topbar"><div><span class="crumb">Sites / Backups</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
     {{template "site-tabs" .}}
     <main class="content">
-      <header class="page-head"><div><p class="eyebrow">Recovery</p><h1>Backups</h1><p>Manual and scheduled archives with guarded restore and a seven-day deletion quarantine.</p></div></header>
+      <header class="page-head"><div><h1>Backups</h1><p>Manual and scheduled archives with guarded restore and a seven-day deletion quarantine.</p></div></header>
       {{if .JobID}}<p class="notice"><strong>Server task queued</strong><span>Follow live progress from the Dashboard.</span><a href="/?job={{.JobID}}">View task</a></p>{{end}}
       {{if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}
       {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}

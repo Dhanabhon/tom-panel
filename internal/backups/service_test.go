@@ -107,9 +107,9 @@ func TestCreateBuildsManifestAndPersists(t *testing.T) {
 	database := newBackupStore(t)
 	log := &backupAgentLog{
 		responses: map[string]any{
-			"backup.disk_guard":     DiskState{Total: 80 << 30, Used: 20 << 30, Free: 60 << 30},
-			"backup.archive":        archiveResult{Path: "/var/backups/tompanel/x/files-1.tar.gz", Size: 120, SHA256: strings.Repeat("a", 64)},
-			"backup.database_dump":  archiveResult{Path: "/var/backups/tompanel/x/db-1.sql", Size: 80, SHA256: strings.Repeat("b", 64)},
+			"backup.disk_guard":    DiskState{Total: 80 << 30, Used: 20 << 30, Free: 60 << 30},
+			"backup.archive":       archiveResult{Path: "/var/backups/tompanel/x/files-1.tar.gz", Size: 120, SHA256: strings.Repeat("a", 64)},
+			"backup.database_dump": archiveResult{Path: "/var/backups/tompanel/x/db-1.sql", Size: 80, SHA256: strings.Repeat("b", 64)},
 		},
 	}
 	service := NewService(database, log.call)
@@ -136,9 +136,9 @@ func TestRestoreFailureReactivatesPreRestoreState(t *testing.T) {
 	database := newBackupStore(t)
 	log := &backupAgentLog{
 		responses: map[string]any{
-			"backup.disk_guard":  DiskState{Total: 80 << 30, Used: 20 << 30, Free: 60 << 30},
-			"backup.archive":     archiveResult{Path: "/var/backups/tompanel/x/files-1.tar.gz", Size: 120, SHA256: strings.Repeat("a", 64)},
-			"backup.verify":      archiveResult{SHA256: strings.Repeat("a", 64)},
+			"backup.disk_guard": DiskState{Total: 80 << 30, Used: 20 << 30, Free: 60 << 30},
+			"backup.archive":    archiveResult{Path: "/var/backups/tompanel/x/files-1.tar.gz", Size: 120, SHA256: strings.Repeat("a", 64)},
+			"backup.verify":     archiveResult{SHA256: strings.Repeat("a", 64)},
 		},
 		failOn: map[string]error{"backup.activate_restore": errors.New("activation failed")},
 	}

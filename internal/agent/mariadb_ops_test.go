@@ -23,15 +23,15 @@ func testDatabaseUser(generation int) string {
 var dbTestPassword = strings.Repeat("c", 26)
 
 type recordedSQL struct {
-	query string
+	query  string
 	asUser string
 }
 
 type fakeMariaDB struct {
-	queries   []recordedSQL
-	failOn    func(query string) bool
-	dumped    []string
-	restored  []string
+	queries  []recordedSQL
+	failOn   func(query string) bool
+	dumped   []string
+	restored []string
 }
 
 func (f *fakeMariaDB) exec(_ context.Context, query string) error {

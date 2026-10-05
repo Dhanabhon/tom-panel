@@ -51,12 +51,12 @@ type AuditEvent struct {
 }
 
 var (
-	ErrAccountNotFound  = errors.New("sftp account not found")
-	ErrKeyNotFound      = errors.New("sftp key not found")
-	ErrAccountRequired  = errors.New("sftp account must be enabled before this operation")
-	passwordAlphabet    = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-	passwordLength      = 24
-	siteUsernamePrefix  = "tp_"
+	ErrAccountNotFound = errors.New("sftp account not found")
+	ErrKeyNotFound     = errors.New("sftp key not found")
+	ErrAccountRequired = errors.New("sftp account must be enabled before this operation")
+	passwordAlphabet   = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+	passwordLength     = 24
+	siteUsernamePrefix = "tp_"
 )
 
 // AccessService combines SFTP account state with privileged agent calls.

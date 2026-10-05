@@ -138,6 +138,17 @@ func TestNoSideStripeAccents(t *testing.T) {
 	}
 }
 
+func TestNoEyebrowKickers(t *testing.T) {
+	for name, source := range templateSources(t) {
+		if strings.Contains(source, `class="eyebrow"`) {
+			t.Errorf("%s still renders an eyebrow kicker (banned AI tell)", name)
+		}
+	}
+	if css := readEmbeddedAsset(t, "static/app.css"); strings.Contains(css, ".eyebrow") {
+		t.Fatal("app.css still ships the .eyebrow style")
+	}
+}
+
 func TestEveryTemplateClassIsStyled(t *testing.T) {
 	css := readEmbeddedAsset(t, "static/app.css")
 	defined := map[string]bool{}

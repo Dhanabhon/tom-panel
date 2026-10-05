@@ -16,11 +16,11 @@ import (
 const rotationSiteID = "22222222222222222222222222222222"
 
 type rotationEnv struct {
-	service *Service
-	database *store.Store
-	rotateCalls []map[string]any
-	failVerify bool
-	appUpdates []string
+	service      *Service
+	database     *store.Store
+	rotateCalls  []map[string]any
+	failVerify   bool
+	appUpdates   []string
 	databasePath string
 }
 

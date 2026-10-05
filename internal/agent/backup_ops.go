@@ -54,9 +54,9 @@ type backupRestoreDatabaseInput struct {
 }
 
 type backupUploadInput struct {
-	SiteID   string                `json:"site_id"`
-	Path     string                `json:"path"`
-	Key      string                `json:"key"`
+	SiteID   string                 `json:"site_id"`
+	Path     string                 `json:"path"`
+	Key      string                 `json:"key"`
 	Settings backups.RemoteSettings `json:"settings"`
 }
 
@@ -81,7 +81,7 @@ func diskGuardBackup(ctx context.Context, input backupSiteInput) (backups.DiskSt
 	if err := statfsDeepestExisting(backupRootPath, &stat); err != nil {
 		return backups.DiskState{}, fmt.Errorf("stat backup volume: %w", err)
 	}
-blockSize := uint64(stat.Bsize)
+	blockSize := uint64(stat.Bsize)
 	if blockSize == 0 {
 		return backups.DiskState{}, errors.New("backup volume block size is invalid")
 	}

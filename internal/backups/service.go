@@ -138,10 +138,10 @@ func (s *Service) Create(ctx context.Context, siteID, kind string) (Backup, Mani
 		key := remote.ObjectKey(siteID, id)
 		var upload archiveResult
 		if err := s.agent(ctx, "backup.upload", struct {
-			SiteID       string          `json:"site_id"`
-			Path         string          `json:"path"`
-			Key          string          `json:"key"`
-			Settings     RemoteSettings  `json:"settings"`
+			SiteID   string         `json:"site_id"`
+			Path     string         `json:"path"`
+			Key      string         `json:"key"`
+			Settings RemoteSettings `json:"settings"`
 		}{siteID, files.Path, key, remote}, &upload); err != nil {
 			// Local backup remains usable; remote copy is optional.
 			backup.State = "complete"

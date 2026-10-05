@@ -44,7 +44,9 @@ func newBackupHarness(t *testing.T) *backupHarness {
 				*target = backups.DiskState{Total: 80 << 30, Used: 20 << 30, Free: 60 << 30}
 			}
 		case "backup.archive":
-			if target, ok := output.(interface{ Set(path string, size int64, sha string) }); ok {
+			if target, ok := output.(interface {
+				Set(path string, size int64, sha string)
+			}); ok {
 				_ = target
 			}
 			if target, ok := output.(*struct {

@@ -57,7 +57,7 @@ func TestJobSSEReloadStartsWithPersistedState(t *testing.T) {
 }
 
 func TestDashboardReloadShowsDurableJob(t *testing.T) {
-	_, service, manager, recoveryCode := newDashboardRuntime(t)
+	database, service, manager, recoveryCode := newDashboardRuntime(t)
 	registerWebTestJob(t, manager)
 	id, err := manager.Enqueue(context.Background(), jobs.Definition{Kind: "test", Input: json.RawMessage(`{}`), Steps: []jobs.Step{webTestStep()}})
 	if err != nil {
@@ -67,7 +67,7 @@ func TestDashboardReloadShowsDurableJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := loginDashboardUser(t, service, recoveryCode)
-	handler, err := NewDashboardHandlers(service, manager, "test-vps")
+	handler, err := NewDashboardHandlers(service, manager, database, "test-vps")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,8 +88,8 @@ func TestDashboardReloadShowsDurableJob(t *testing.T) {
 }
 
 func TestLoginPageHasPasswordThenTOTPFlow(t *testing.T) {
-	_, service, manager, _ := newDashboardRuntime(t)
-	handler, err := NewDashboardHandlers(service, manager, "test-vps")
+	database, service, manager, _ := newDashboardRuntime(t)
+	handler, err := NewDashboardHandlers(service, manager, database, "test-vps")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,8 +110,8 @@ func TestLoginPageHasPasswordThenTOTPFlow(t *testing.T) {
 }
 
 func TestSetupPageNeverRendersFragmentToken(t *testing.T) {
-	_, service, manager, _ := newDashboardRuntime(t)
-	handler, err := NewDashboardHandlers(service, manager, "test-vps")
+	database, service, manager, _ := newDashboardRuntime(t)
+	handler, err := NewDashboardHandlers(service, manager, database, "test-vps")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,8 +131,8 @@ func TestSetupPageNeverRendersFragmentToken(t *testing.T) {
 }
 
 func TestDashboardRedirectsUnauthenticatedBrowserToLogin(t *testing.T) {
-	_, service, manager, _ := newDashboardRuntime(t)
-	handler, err := NewDashboardHandlers(service, manager, "test-vps")
+	database, service, manager, _ := newDashboardRuntime(t)
+	handler, err := NewDashboardHandlers(service, manager, database, "test-vps")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +298,7 @@ func TestFailureCodeAndRedactionReachSSEWithoutLeakingDashboard(t *testing.T) {
 		t.Fatalf("SSE failure payload = %q", sse)
 	}
 
-	dashboard, err := NewDashboardHandlers(service, manager, "test-vps")
+	dashboard, err := NewDashboardHandlers(service, manager, database, "test-vps")
 	if err != nil {
 		t.Fatal(err)
 	}

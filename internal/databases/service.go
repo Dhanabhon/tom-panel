@@ -25,15 +25,15 @@ const (
 )
 
 var (
-	ErrDatabaseNotFound  = errors.New("database not found")
-	ErrBackupNotFound    = errors.New("database backup not found")
-	ErrEndpointNotFound  = errors.New("phpmyadmin endpoint not found")
-	ErrPortUnavailable   = errors.New("requested port is already in use")
-	ErrSuffixTaken       = errors.New("database suffix already exists")
-	credentialAlphabet   = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-	credentialLength     = 28
-	privatePortFirst     = 8100
-	privatePortLast      = 8199
+	ErrDatabaseNotFound = errors.New("database not found")
+	ErrBackupNotFound   = errors.New("database backup not found")
+	ErrEndpointNotFound = errors.New("phpmyadmin endpoint not found")
+	ErrPortUnavailable  = errors.New("requested port is already in use")
+	ErrSuffixTaken      = errors.New("database suffix already exists")
+	credentialAlphabet  = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+	credentialLength    = 28
+	privatePortFirst    = 8100
+	privatePortLast     = 8199
 )
 
 // Database is one site-scoped MariaDB database.

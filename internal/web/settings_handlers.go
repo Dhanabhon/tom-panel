@@ -126,10 +126,10 @@ func (h *SettingsHandlers) saveS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	settings := backups.RemoteSettings{
-		Endpoint: strings.TrimSpace(r.PostForm.Get("endpoint")),
-		Region:   strings.TrimSpace(r.PostForm.Get("region")),
-		Bucket:   strings.TrimSpace(r.PostForm.Get("bucket")),
-		Prefix:   strings.TrimSpace(r.PostForm.Get("prefix")),
+		Endpoint:     strings.TrimSpace(r.PostForm.Get("endpoint")),
+		Region:       strings.TrimSpace(r.PostForm.Get("region")),
+		Bucket:       strings.TrimSpace(r.PostForm.Get("bucket")),
+		Prefix:       strings.TrimSpace(r.PostForm.Get("prefix")),
 		AgeRecipient: strings.TrimSpace(r.PostForm.Get("age_recipient")),
 		AccessKeyID:  strings.TrimSpace(r.PostForm.Get("access_key")),
 		SecretKey:    strings.TrimSpace(r.PostForm.Get("secret_key")),

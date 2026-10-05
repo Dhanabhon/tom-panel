@@ -15,8 +15,8 @@ import (
 
 	"github.com/Dhanabhon/tom-panel/internal/agentapi"
 	"github.com/Dhanabhon/tom-panel/internal/apps"
-	"github.com/Dhanabhon/tom-panel/internal/backups"
 	"github.com/Dhanabhon/tom-panel/internal/auth"
+	"github.com/Dhanabhon/tom-panel/internal/backups"
 	"github.com/Dhanabhon/tom-panel/internal/config"
 	"github.com/Dhanabhon/tom-panel/internal/databases"
 	"github.com/Dhanabhon/tom-panel/internal/domains"
@@ -66,7 +66,7 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	dashboard, err := NewDashboardHandlers(service, manager, serverName())
+	dashboard, err := NewDashboardHandlers(service, manager, database, serverName())
 	if err != nil {
 		return nil, err
 	}

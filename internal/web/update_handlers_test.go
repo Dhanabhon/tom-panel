@@ -2,12 +2,12 @@ package web
 
 import (
 	"context"
-	"net/url"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"

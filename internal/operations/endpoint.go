@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	ErrCloudflarePort    = errors.New("cloudflare proxy requires port 443 or 8443")
-	ErrEndpointHostname  = errors.New("endpoint hostname conflicts with a managed site")
-	ErrEndpointInvalid   = errors.New("endpoint configuration is invalid")
+	ErrCloudflarePort   = errors.New("cloudflare proxy requires port 443 or 8443")
+	ErrEndpointHostname = errors.New("endpoint hostname conflicts with a managed site")
+	ErrEndpointInvalid  = errors.New("endpoint configuration is invalid")
 	// EndpointChangeJobKind re-routes the panel with zero downtime.
 	EndpointChangeJobKind = "endpoint.change"
 )

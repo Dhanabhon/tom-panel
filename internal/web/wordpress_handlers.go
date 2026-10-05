@@ -29,11 +29,11 @@ type WordPressHandlers struct {
 
 type wordpressPageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
-	Site                                            sites.Site
-	SiteKind                                        string
-	Installation                                    *apps.Installation
-	Credentials                                     *apps.OneTimeInstallCredentials
-	Notice, Warning                                 string
+	Site                                                        sites.Site
+	SiteKind                                                    string
+	Installation                                                *apps.Installation
+	Credentials                                                 *apps.OneTimeInstallCredentials
+	Notice, Warning                                             string
 }
 
 // NewWordPressHandlers wires the WordPress routes for one site scope.

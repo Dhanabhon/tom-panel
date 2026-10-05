@@ -15,28 +15,19 @@
 
     <main class="content">
       <header class="page-head">
-        <div><p class="eyebrow">Operations first</p><h1>Dashboard</h1><p>Durable work remains visible across reloads and daemon restarts.</p></div>
+        <div><h1>Dashboard</h1><p>Live state from the durable store. Work remains visible across reloads and daemon restarts.</p></div>
         <span class="badge good">Private control plane</span>
       </header>
 
-      <section class="resource-strip" aria-label="Foundation status">
-        <div class="resource"><span>Access</span><strong>Private HTTPS</strong></div>
-        <div class="resource"><span>Authentication</span><strong>Password + TOTP</strong></div>
-        <div class="resource"><span>Job state</span><strong>SQLite · durable</strong></div>
-        <div class="resource"><span>Agent boundary</span><strong>Typed Unix socket</strong></div>
+      <section class="resource-strip" aria-label="Server state">
+        <div class="resource"><span>Sites</span><strong>{{.Counts.SitesTotal}}</strong><span class="muted">{{.Counts.SitesActive}} active{{if .Counts.SitesFailed}} · {{.Counts.SitesFailed}} failed{{end}}</span></div>
+        <div class="resource"><span>Jobs</span><strong>{{.Counts.JobsRunning}}</strong><span class="muted">running · {{.Counts.JobsQueued}} queued</span></div>
+        <div class="resource"><span>Backups</span><strong>{{.Counts.Backups}}</strong><span class="muted">archives</span></div>
+        <div class="resource"><span>Quarantine</span><strong>{{.Counts.Quarantined}}</strong><span class="muted">sites awaiting purge</span></div>
       </section>
 
       <div class="dashboard-grid">
         <div class="stack">
-          <section class="panel" aria-labelledby="demo-title">
-            <header class="panel-head"><div><p class="eyebrow">Approved operation</p><h2 id="demo-title">Control-plane demo</h2></div></header>
-            <form class="panel-body action-form" method="post" action="/jobs/demo">
-              <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
-              <label class="field"><span>Message</span><input name="message" maxlength="200" value="Verify the TomPanel agent channel" required><small>Runs an agent health check, then the allowlisted demo operation.</small></label>
-              <button class="btn primary" type="submit">Start durable job</button>
-            </form>
-          </section>
-
           <section class="panel" aria-labelledby="jobs-title">
             <header class="panel-head"><h2 id="jobs-title">Recent jobs</h2><span class="stream-state" data-stream-summary aria-live="polite">Persisted state</span></header>
             {{if .Jobs}}
@@ -70,7 +61,7 @@
               {{end}}
             </ol>
             {{else}}
-            <div class="empty-state"><h3>No jobs yet</h3><p>Start the allowlisted demo to verify durable progress and the agent channel.</p></div>
+            <div class="empty-state"><h3>No jobs yet</h3><p>Site and database operations appear here with durable, resumable progress.</p></div>
             {{end}}
           </section>
 
@@ -83,17 +74,18 @@
         <aside class="panel attention" aria-labelledby="attention-title">
           <header class="panel-head"><h2 id="attention-title">Needs attention</h2></header>
           <div class="panel-body">
-            {{if .Jobs}}
-            <p>Failed and cancelling jobs remain in Recent jobs with their persisted error and retry state.</p>
+            {{if .Counts.JobsFailed}}
+            <p><strong>{{.Counts.JobsFailed}}</strong> failed job{{if gt .Counts.JobsFailed 1}}s{{end}} wait{{if eq .Counts.JobsFailed 1}}s{{end}} for retry or investigation. Failed work keeps its persisted error and never disappears on reload.</p>
+            {{else if .Counts.SitesFailed}}
+            <p>{{.Counts.SitesFailed}} site{{if gt .Counts.SitesFailed 1}}s{{end}} in the failed state — retry provisioning from the site overview.</p>
             {{else}}
-            <p>No job failures are recorded.</p>
+            <p>Nothing needs attention. Failed jobs and failed sites would surface here.</p>
             {{end}}
-            <p class="notice"><strong>Foundation boundary</strong><span>Resource metrics and site health are omitted until real collectors exist.</span></p>
           </div>
         </aside>
       </div>
 
-      <footer class="footer-line"><span>TomPanel foundation control plane</span><span>Private access recommended</span></footer>
+      <footer class="footer-line"><span>TomPanel control plane</span><span>Private access recommended</span></footer>
     </main>
   </div>
 </body>

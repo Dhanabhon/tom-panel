@@ -13,8 +13,7 @@
       <div class="auth-card">
         {{if .Setup}}
         <header>
-          <p class="eyebrow">Single administrator</p>
-          <h1 id="auth-title">Secure this server</h1>
+                    <h1 id="auth-title">Secure this server</h1>
           <p>Create the only Panel administrator, then save the TOTP secret and recovery codes offline.</p>
         </header>
         <form class="form-stack" method="post" action="/setup" data-setup-form hidden>
@@ -36,8 +35,7 @@
         </section>
         {{else}}
         <header>
-          <p class="eyebrow">Single administrator</p>
-          <h1 id="auth-title">Welcome back</h1>
+                    <h1 id="auth-title">Welcome back</h1>
           <p>Sign in to manage this server.</p>
         </header>
         <form class="form-stack" method="post" action="/login" data-login-form>

@@ -18,9 +18,9 @@ func phpmyadminArchiveFixture(t *testing.T) []byte {
 	var raw bytes.Buffer
 	writer := tar.NewWriter(&raw)
 	files := map[string]string{
-		"phpMyAdmin-5.2.2/index.php":                        "<?php // entry",
-		"phpMyAdmin-5.2.2/libraries/classes/Core.php":       "<?php // core",
-		"phpMyAdmin-5.2.2/themes/original/css/custom.css":   "body{}",
+		"phpMyAdmin-5.2.2/index.php":                      "<?php // entry",
+		"phpMyAdmin-5.2.2/libraries/classes/Core.php":     "<?php // core",
+		"phpMyAdmin-5.2.2/themes/original/css/custom.css": "body{}",
 	}
 	for name, content := range files {
 		if err := writer.WriteHeader(&tar.Header{Name: name, Typeflag: tar.TypeReg, Size: int64(len(content)), Mode: 0o644}); err != nil {
@@ -45,10 +45,10 @@ func phpmyadminArchiveFixture(t *testing.T) []byte {
 }
 
 type phpmyadminHarness struct {
-	env       phpmyadminEnvironment
-	ufwCalls  []ufwInput
-	nginxDir  string
-	authDir   string
+	env      phpmyadminEnvironment
+	ufwCalls []ufwInput
+	nginxDir string
+	authDir  string
 }
 
 func newPHPMyAdminHarness(t *testing.T) *phpmyadminHarness {

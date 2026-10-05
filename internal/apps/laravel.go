@@ -31,13 +31,13 @@ type LaravelInstallInput struct {
 
 // LaravelDeployInput describes one deployment.
 type LaravelDeployInput struct {
-	SiteID             string `json:"site_id"`
-	Repository         string `json:"repository"`
-	Branch             string `json:"branch"`
-	NodeBuild          bool   `json:"node_build"`
-	HTTPSPort          int    `json:"https_port"`
-	RunMigrations      bool   `json:"run_migrations"`
-	Release            string `json:"release"`
+	SiteID        string `json:"site_id"`
+	Repository    string `json:"repository"`
+	Branch        string `json:"branch"`
+	NodeBuild     bool   `json:"node_build"`
+	HTTPSPort     int    `json:"https_port"`
+	RunMigrations bool   `json:"run_migrations"`
+	Release       string `json:"release"`
 }
 
 // ValidateLaravelRepo accepts HTTPS and SSH Git locations only. Local,

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Dhanabhon/tom-panel/internal/backups"
 	"filippo.io/age"
+	"github.com/Dhanabhon/tom-panel/internal/backups"
 )
 
 func backupHarness(t *testing.T) (sitesBase, backupBase string) {

@@ -31,8 +31,8 @@ type backupsPageData struct {
 	Site                                                        sites.Site
 	SiteKind                                                    string
 	Backups                                                     []backups.Backup
-	LocalOnlyWarning                                           bool
-	Notice, Warning                                            string
+	LocalOnlyWarning                                            bool
+	Notice, Warning                                             string
 }
 
 // NewBackupHandlers wires the backup routes for one site scope.

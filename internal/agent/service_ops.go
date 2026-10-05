@@ -13,12 +13,12 @@ import (
 // agentManagedUnits mirrors the panel allowlist: the agent refuses any unit
 // outside this set regardless of what the panel sends.
 var agentManagedUnits = map[string]bool{
-	"nginx.service":         true,
-	"mariadb.service":       true,
-	"php8.3-fpm.service":    true,
-	"php8.4-fpm.service":    true,
-	"php8.5-fpm.service":    true,
-	"redis-server.service":  true,
+	"nginx.service":        true,
+	"mariadb.service":      true,
+	"php8.3-fpm.service":   true,
+	"php8.4-fpm.service":   true,
+	"php8.5-fpm.service":   true,
+	"redis-server.service": true,
 }
 
 type serviceUnitInput struct {

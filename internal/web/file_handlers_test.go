@@ -132,8 +132,8 @@ func TestFileHandlerRejectsTraversalOverHTTP(t *testing.T) {
 	if recorder := harness.get("/sites/" + harness.site.ID + "/files/download?path=" + url.QueryEscape("../../etc/passwd")); recorder.Code != http.StatusBadRequest {
 		t.Fatalf("download traversal status = %d", recorder.Code)
 	}
-	if recorder := harness.post("/sites/"+harness.site.ID+"/files/save", "path=../evil.txt&content=no"); recorder.Code != http.StatusBadRequest {
-		t.Fatalf("save traversal status = %d", recorder.Code)
+	if recorder := harness.post("/sites/"+harness.site.ID+"/files/save", "path=../evil.txt&content=no"); recorder.Code != http.StatusSeeOther || !strings.Contains(recorder.Header().Get("Location"), "warning=") {
+		t.Fatalf("save traversal status = %d Location %q", recorder.Code, recorder.Header().Get("Location"))
 	}
 	if _, err := os.Stat(filepath.Join(harness.root, "..", "evil.txt")); err == nil {
 		t.Fatal("traversal wrote outside the site root")
@@ -188,8 +188,8 @@ func TestFileExtractRejectsSymlinkArchiveOverHTTP(t *testing.T) {
 	// tar with a single symlink entry pointing outside the root.
 	archive.WriteString("placeholder-for-binary-tar")
 	recorder := harness.postMultipart("/sites/"+harness.site.ID+"/files/extract", "file", "evil.tar.gz", archive.Bytes(), url.Values{"path": {"."}})
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusSeeOther || !strings.Contains(recorder.Header().Get("Location"), "warning=") {
+		t.Fatalf("status = %d Location=%q body=%s", recorder.Code, recorder.Header().Get("Location"), recorder.Body.String())
 	}
 }
 

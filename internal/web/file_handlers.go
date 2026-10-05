@@ -31,14 +31,14 @@ type FileHandlers struct {
 
 type filesPageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, JobID string
-	Site                                            sites.Site
-	Path, Parent                                    string
-	Entries                                         []files.Entry
-	Trash                                           []files.TrashEntry
-	Account                                         *files.Account
-	Keys                                            []files.Key
-	OneTimePassword                                 string
-	Notice, Warning                                 string
+	Site                                                        sites.Site
+	Path, Parent                                                string
+	Entries                                                     []files.Entry
+	Trash                                                       []files.TrashEntry
+	Account                                                     *files.Account
+	Keys                                                        []files.Key
+	OneTimePassword                                             string
+	Notice, Warning                                             string
 }
 
 // NewFileHandlers wires the file manager routes for one site scope.
@@ -144,6 +144,8 @@ func (h *FileHandlers) page(w http.ResponseWriter, r *http.Request) {
 		Title: site.PrimaryDomain + " · Files · TomPanel", ServerName: h.serverName, CurrentNav: "sites", CurrentTab: "files",
 		CSRFToken: session.CSRFToken, Site: site, Path: dir, Parent: parent,
 		Entries: entries, Trash: trash, Account: &account, Keys: keys,
+		Notice:  strings.TrimSpace(r.URL.Query().Get("notice")),
+		Warning: strings.TrimSpace(r.URL.Query().Get("warning")),
 	}
 	if listErr != nil {
 		data.Warning = "Directory could not be listed."
@@ -183,7 +185,7 @@ func (h *FileHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 	target := joinDir(r.PostForm.Get("path"), r.PostForm.Get("name"))
 	if err := h.service.Create(r.Context(), site.ID, target, kind); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, r.PostForm.Get("path"), describeFileError(err))
 		return
 	}
 	h.redirectBack(w, r, site.ID, r.PostForm.Get("path"), "")
@@ -199,7 +201,7 @@ func (h *FileHandlers) save(w http.ResponseWriter, r *http.Request) {
 	}
 	target := r.PostForm.Get("path")
 	if err := h.service.WriteText(r.Context(), site.ID, target, []byte(r.PostForm.Get("content"))); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, path.Dir(target), describeFileError(err))
 		return
 	}
 	h.redirectBack(w, r, site.ID, path.Dir(target), "Saved "+path.Base(target))
@@ -212,7 +214,7 @@ func (h *FileHandlers) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, h.service.Limits().MaxUploadBytes+(1<<20))
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "upload exceeds the configured size limit", http.StatusRequestEntityTooLarge)
+		h.redirectWarn(w, r, site.ID, ".", "Upload exceeds the configured size limit")
 		return
 	}
 	dir := strings.Trim(r.PostForm.Get("path"), "/")
@@ -221,22 +223,22 @@ func (h *FileHandlers) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	uploaded, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "no file was uploaded", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, "No file was uploaded")
 		return
 	}
 	defer uploaded.Close()
 	name := strings.ReplaceAll(header.Filename, "\\", "/")
 	if strings.Contains(name, "/") || strings.Contains(name, "..") {
-		http.Error(w, "uploaded file name is invalid", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, "Uploaded file name is invalid")
 		return
 	}
 	target := joinDir(dir, name)
 	if _, err := h.service.ValidateRelative(target); err != nil {
-		http.Error(w, "uploaded file name is invalid", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, "Uploaded file name is invalid")
 		return
 	}
 	if err := h.service.Upload(r.Context(), site.ID, target, uploaded); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, describeFileError(err))
 		return
 	}
 	h.redirectBack(w, r, site.ID, dir, "Uploaded "+name)
@@ -253,7 +255,7 @@ func (h *FileHandlers) rename(w http.ResponseWriter, r *http.Request) {
 	from := r.PostForm.Get("path")
 	to := joinDir(path.Dir(from), r.PostForm.Get("name"))
 	if err := h.service.Rename(r.Context(), site.ID, from, to); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, path.Dir(from), describeFileError(err))
 		return
 	}
 	h.redirectBack(w, r, site.ID, path.Dir(to), "")
@@ -270,7 +272,7 @@ func (h *FileHandlers) copy(w http.ResponseWriter, r *http.Request) {
 	from := r.PostForm.Get("path")
 	to := joinDir(path.Dir(from), r.PostForm.Get("name"))
 	if err := h.service.Copy(r.Context(), site.ID, from, to); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, path.Dir(from), describeFileError(err))
 		return
 	}
 	h.redirectBack(w, r, site.ID, path.Dir(to), "")
@@ -286,7 +288,7 @@ func (h *FileHandlers) trash(w http.ResponseWriter, r *http.Request) {
 	}
 	target := r.PostForm.Get("path")
 	if _, err := h.service.Trash(r.Context(), site.ID, target); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, path.Dir(target), describeFileError(err))
 		return
 	}
 	h.audit(r, "files.trashed", site.ID, target)
@@ -302,7 +304,7 @@ func (h *FileHandlers) restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.service.RestoreTrash(r.Context(), site.ID, r.PostForm.Get("id"), r.PostForm.Get("dest")); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, ".", describeFileError(err))
 		return
 	}
 	h.audit(r, "files.restored", site.ID, r.PostForm.Get("id"))
@@ -333,12 +335,12 @@ func (h *FileHandlers) archive(w http.ResponseWriter, r *http.Request) {
 		sources = append(sources, joinDir(dir, selected))
 	}
 	if len(sources) == 0 {
-		http.Error(w, "select at least one entry to archive", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, "Select at least one entry to archive")
 		return
 	}
 	destination := joinDir(dir, name)
 	if err := h.service.Archive(r.Context(), site.ID, sources, destination); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, describeFileError(err))
 		return
 	}
 	h.redirectBack(w, r, site.ID, dir, "Created "+name)
@@ -351,7 +353,7 @@ func (h *FileHandlers) extract(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, h.service.Limits().MaxUploadBytes+(1<<20))
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "archive exceeds the configured size limit", http.StatusRequestEntityTooLarge)
+		h.redirectWarn(w, r, site.ID, ".", "Archive exceeds the configured size limit")
 		return
 	}
 	dir := strings.Trim(r.PostForm.Get("path"), "/")
@@ -360,17 +362,17 @@ func (h *FileHandlers) extract(w http.ResponseWriter, r *http.Request) {
 	}
 	uploaded, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "no archive was uploaded", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, "No archive was uploaded")
 		return
 	}
 	defer uploaded.Close()
 	name := strings.TrimSuffix(path.Base(strings.ReplaceAll(header.Filename, "\\", "/")), ".tar.gz")
 	if name == "" || name == "." {
-		http.Error(w, "archive name is invalid", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, "Archive name is invalid")
 		return
 	}
 	if err := h.service.Extract(r.Context(), site.ID, uploaded, joinDir(dir, name), h.service.Limits()); err != nil {
-		http.Error(w, describeFileError(err), http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, dir, describeFileError(err))
 		return
 	}
 	h.audit(r, "files.extracted", site.ID, joinDir(dir, name))
@@ -415,7 +417,7 @@ func (h *FileHandlers) sftpEnable(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.access.Enable(r.Context(), site.ID, &files.AuditEvent{
 		AdminID: session.AdminID, Action: "sftp.account.enabled", Detail: detail,
 	}); err != nil {
-		http.Error(w, "SFTP access could not be enabled", http.StatusBadGateway)
+		h.redirectWarn(w, r, site.ID, ".", "SFTP access could not be enabled")
 		return
 	}
 	h.redirectBack(w, r, site.ID, ".", "SFTP access enabled")
@@ -437,7 +439,7 @@ func (h *FileHandlers) sftpDisable(w http.ResponseWriter, r *http.Request) {
 	if err := h.access.Disable(r.Context(), site.ID, &files.AuditEvent{
 		AdminID: session.AdminID, Action: "sftp.account.disabled", Detail: detail,
 	}); err != nil {
-		http.Error(w, "SFTP access could not be disabled", http.StatusConflict)
+		h.redirectWarn(w, r, site.ID, ".", "SFTP access could not be disabled")
 		return
 	}
 	h.redirectBack(w, r, site.ID, ".", "SFTP access disabled")
@@ -463,7 +465,7 @@ func (h *FileHandlers) sftpPassword(w http.ResponseWriter, r *http.Request) {
 		AdminID: session.AdminID, Action: "sftp.password.rotated", Detail: detail,
 	})
 	if err != nil {
-		http.Error(w, "password could not be rotated", http.StatusConflict)
+		h.redirectWarn(w, r, site.ID, ".", "Password could not be rotated")
 		return
 	}
 	account, keys, _ := h.access.Get(r.Context(), site.ID)
@@ -496,7 +498,7 @@ func (h *FileHandlers) sftpKeyAdd(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.access.AddKey(r.Context(), site.ID, publicKey, &files.AuditEvent{
 		AdminID: session.AdminID, Action: "sftp.key.added", Detail: detail,
 	}); err != nil {
-		http.Error(w, "public key could not be added", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, ".", "Public key could not be added")
 		return
 	}
 	h.redirectBack(w, r, site.ID, ".", "Public key authorized")
@@ -521,7 +523,7 @@ func (h *FileHandlers) sftpKeyRemove(w http.ResponseWriter, r *http.Request) {
 	if err := h.access.RemoveKey(r.Context(), site.ID, r.PostForm.Get("fingerprint"), &files.AuditEvent{
 		AdminID: session.AdminID, Action: "sftp.key.removed", Detail: detail,
 	}); err != nil {
-		http.Error(w, "public key could not be removed", http.StatusBadRequest)
+		h.redirectWarn(w, r, site.ID, ".", "Public key could not be removed")
 		return
 	}
 	h.redirectBack(w, r, site.ID, ".", "Public key removed")
@@ -531,6 +533,16 @@ func (h *FileHandlers) redirectBack(w http.ResponseWriter, r *http.Request, site
 	target := "/sites/" + siteID + "/files?path=" + strings.Trim(dir, "/")
 	if notice != "" {
 		target += "&notice=" + url.QueryEscape(notice)
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// redirectWarn returns to the file browser with a warning banner instead of
+// an unstyled plain-text error page.
+func (h *FileHandlers) redirectWarn(w http.ResponseWriter, r *http.Request, siteID, dir, message string) {
+	target := "/sites/" + siteID + "/files?path=" + strings.Trim(dir, "/")
+	if message != "" {
+		target += "&warning=" + url.QueryEscape(message)
 	}
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }

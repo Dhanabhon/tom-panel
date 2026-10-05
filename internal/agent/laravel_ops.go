@@ -17,23 +17,23 @@ import (
 )
 
 const (
-	gitBinary        = "/usr/bin/git"
-	composerBinary   = "/usr/bin/composer"
-	npmBinary        = "/usr/bin/npm"
-	phpBinary        = "/usr/bin/php"
-	systemdRootPath  = "/etc/systemd/system"
-	deployKeyRel     = ".tompanel/deploy_key"
-	releasesRel      = "releases"
-	sharedRel        = "shared"
-	currentRel       = "current"
-	legacyPublicRel  = ".tompanel/first-public-backup"
+	gitBinary       = "/usr/bin/git"
+	composerBinary  = "/usr/bin/composer"
+	npmBinary       = "/usr/bin/npm"
+	phpBinary       = "/usr/bin/php"
+	systemdRootPath = "/etc/systemd/system"
+	deployKeyRel    = ".tompanel/deploy_key"
+	releasesRel     = "releases"
+	sharedRel       = "shared"
+	currentRel      = "current"
+	legacyPublicRel = ".tompanel/first-public-backup"
 )
 
 // laravelEnvironment carries every privileged effect for tests.
 type laravelEnvironment struct {
-	run      func(ctx context.Context, name string, args []string, stdin []byte, env []string, dir string) error
-	health   func(ctx context.Context, host string, port int) error
-	systemd  string
+	run     func(ctx context.Context, name string, args []string, stdin []byte, env []string, dir string) error
+	health  func(ctx context.Context, host string, port int) error
+	systemd string
 }
 
 func defaultLaravelEnvironment() laravelEnvironment {
@@ -51,7 +51,7 @@ func defaultLaravelEnvironment() laravelEnvironment {
 			}
 			return nil
 		},
-		health: laravelHTTPHealth,
+		health:  laravelHTTPHealth,
 		systemd: systemdRootPath,
 	}
 }

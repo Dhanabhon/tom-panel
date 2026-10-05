@@ -39,19 +39,19 @@ func DefaultLimits() Limits {
 }
 
 var (
-	ErrUnsafePath        = errors.New("path escapes or violates the site root rules")
-	ErrNotFound          = errors.New("path was not found")
-	ErrDestinationExists = errors.New("destination already exists")
-	ErrTooLarge          = errors.New("operation exceeds configured size limits")
-	ErrNotRegularFile    = errors.New("path is not a regular file")
+	ErrUnsafePath         = errors.New("path escapes or violates the site root rules")
+	ErrNotFound           = errors.New("path was not found")
+	ErrDestinationExists  = errors.New("destination already exists")
+	ErrTooLarge           = errors.New("operation exceeds configured size limits")
+	ErrNotRegularFile     = errors.New("path is not a regular file")
 	ErrUnsafeArchiveEntry = errors.New("archive entry is unsafe")
-	ErrArchiveTooLarge   = errors.New("archive exceeds configured limits")
+	ErrArchiveTooLarge    = errors.New("archive exceeds configured limits")
 )
 
 const (
-	trashDirName   = ".tompanel-trash"
-	tempPrefix     = ".tompanel-tmp-"
-	metaFileName   = "meta.json"
+	trashDirName    = ".tompanel-trash"
+	tempPrefix      = ".tompanel-tmp-"
+	metaFileName    = "meta.json"
 	temporarySuffix = ".tompanel-partial"
 )
 

@@ -18,13 +18,13 @@ import (
 const deleteSiteID = "cccccccccccccccccccccccccccccccc"
 
 type deleteHarness struct {
-	store      *store.Store
-	repo       *Repository
+	store       *store.Store
+	repo        *Repository
 	provisioner *DeleteProvisioner
-	agentLog   *[]string
-	dnsDeletes *[]string
+	agentLog    *[]string
+	dnsDeletes  *[]string
 	backupCalls *[]string
-	manager    *jobs.Manager
+	manager     *jobs.Manager
 }
 
 func newDeleteHarness(t *testing.T) *deleteHarness {

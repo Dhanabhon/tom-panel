@@ -7,7 +7,7 @@
   <div class="page">
     <header class="topbar"><div><span class="crumb">Sites / Create</span><strong class="mono">{{.ServerName}}</strong></div><a class="btn" href="/sites">Cancel</a></header>
     <main class="content narrow">
-      <header class="page-head"><div><p class="eyebrow">Guided setup</p><h1>Create site</h1><p>Choose the runtime and exposure. TomPanel validates the server before activation.</p></div></header>
+      <header class="page-head"><div><h1>Create site</h1><p>Choose the runtime and exposure. TomPanel validates the server before activation.</p></div></header>
       <section class="panel"><form class="form-stack panel-body" method="post" action="/sites" data-site-create>
         <input name="csrf_token" type="hidden" value="{{.CSRFToken}}">
         <label class="field">Site type<select name="kind" required data-site-kind><option value="static">Static HTML</option><option value="php">PHP</option><option value="reverse_proxy">Reverse Proxy</option></select></label>

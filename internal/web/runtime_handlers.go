@@ -21,8 +21,8 @@ type RuntimeHandlers struct {
 
 type runtimePageData struct {
 	Title, ServerName, CurrentNav, CurrentTab, CSRFToken, SiteID string
-	Site                                             sites.Site
-	Config                                           panelruntime.PHPConfig
+	Site                                                         sites.Site
+	Config                                                       panelruntime.PHPConfig
 }
 
 func NewRuntimeHandlers(authService *auth.Service, runtimeService *panelruntime.Service, serverName string) (*RuntimeHandlers, error) {

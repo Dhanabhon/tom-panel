@@ -51,8 +51,8 @@ type databaseTeardown struct {
 }
 
 type deleteJobInput struct {
-	SiteID          string `json:"site_id"`
-	RemoveManagedDNS bool  `json:"remove_managed_dns"`
+	SiteID           string `json:"site_id"`
+	RemoveManagedDNS bool   `json:"remove_managed_dns"`
 }
 
 // NewDeleteProvisioner builds the provisioner with required collaborators.
