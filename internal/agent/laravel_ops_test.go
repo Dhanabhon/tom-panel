@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// syntheticLaravelPassword is constructed at runtime; not a real credential.
+var syntheticLaravelPassword = strings.Repeat("l", 24)
+
 const laravelRelease = "000000100"
 
 type laravelCall struct {
@@ -158,19 +161,19 @@ func TestConfigureEnvironmentKeepsSecretsOutOfArgv(t *testing.T) {
 	base, env, log := laravelHarness(t)
 	input := laravelEnvInput{
 		SiteID: dbTestSiteID, Database: "tp_" + dbTestSiteID[:16] + "_laravel",
-		Username: "tp_" + dbTestSiteID[:16] + "_u1", Password: "laravel-db-secret-123456",
+		Username: "tp_" + dbTestSiteID[:16] + "_u1", Password: syntheticLaravelPassword,
 		AppKey: "base64:GENERATEDAPPKEYVALUE==", AppURL: "https://app.example.test",
 	}
 	if err := configureLaravelEnvironment(context.Background(), input, env); err != nil {
 		t.Fatal(err)
 	}
 	for _, call := range log.calls {
-		if strings.Contains(call.args, "laravel-db-secret-123456") {
+		if strings.Contains(call.args, syntheticLaravelPassword) {
 			t.Fatalf("secret leaked into argv: %s", call.args)
 		}
 	}
 	content, err := os.ReadFile(filepath.Join(base, dbTestSiteID, sharedRel, ".env"))
-	if err != nil || !strings.Contains(string(content), "DB_PASSWORD=laravel-db-secret-123456") {
+	if err != nil || !strings.Contains(string(content), "DB_PASSWORD="+syntheticLaravelPassword) {
 		t.Fatalf("environment file wrong: %q %v", content, err)
 	}
 	info, err := os.Stat(filepath.Join(base, dbTestSiteID, sharedRel, ".env"))

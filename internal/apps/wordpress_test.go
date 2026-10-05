@@ -5,12 +5,19 @@ import (
 	"testing"
 )
 
+// Synthetic fixtures constructed at runtime; none of these are credentials.
+var (
+	syntheticDBPassword    = strings.Repeat("d", 24)
+	syntheticAdminPassword = strings.Repeat("a", 24)
+	syntheticNewlineSecret = "\n" + strings.Repeat("s", 16)
+)
+
 func testInstallInput() WordPressInstallInput {
 	return WordPressInstallInput{
 		SiteID: "0123456789abcdef0123456789abcdef", SiteURL: "https://wp.example.test",
 		Database: "tp_0123456789abcdef_shop", DBUser: "tp_0123456789abcdef_u1",
-		DBPassword: "generated-db-password-123", AdminUser: "tom", AdminEmail: "tom@example.test",
-		AdminPassword: "generated-password", Title: "My site", Policy: DefaultWordPressPolicy(),
+		DBPassword: syntheticDBPassword, AdminUser: "tom", AdminEmail: "tom@example.test",
+		AdminPassword: syntheticAdminPassword, Title: "My site", Policy: DefaultWordPressPolicy(),
 	}
 }
 
@@ -25,7 +32,7 @@ func TestWordPressSecretsNeverEnterArguments(t *testing.T) {
 		joinedArgs += strings.Join(call.Args, " ") + "\n"
 		joinedStdin += string(call.Stdin)
 	}
-	for _, secret := range []string{"generated-db-password-123", "generated-password"} {
+	for _, secret := range []string{syntheticDBPassword, syntheticAdminPassword} {
 		if strings.Contains(joinedArgs, secret) {
 			t.Fatalf("secret in argv: %s", joinedArgs)
 		}
@@ -116,7 +123,7 @@ func TestInputValidationRejectsWeakSecrets(t *testing.T) {
 		t.Fatal("weak admin password accepted")
 	}
 	base = testInstallInput()
-	base.DBPassword = "has\nnewline-secret-123"
+	base.DBPassword = syntheticNewlineSecret
 	if _, err := BuildWordPressInstallCall(base); err == nil {
 		t.Fatal("multiline database password accepted")
 	}

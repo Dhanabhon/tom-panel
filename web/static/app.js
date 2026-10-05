@@ -5,6 +5,26 @@
     if (error) error.hidden = !visible;
   };
 
+  // Destructive-action confirmation: capture phase so a decline stops every
+  // later handler, on every page, regardless of which container binds click.
+  document.addEventListener("click", event => {
+    const target = event.target instanceof Element ? event.target.closest("[data-confirm]") : null;
+    if (!target) return;
+    if (!window.confirm(target.getAttribute("data-confirm"))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  // Guard against double submits on plain POST forms. Fetch-driven forms
+  // (login, setup, logout) call preventDefault first, so they are skipped
+  // and manage their own button state.
+  document.addEventListener("submit", event => {
+    if (event.defaultPrevented) return;
+    const submit = event.submitter ?? event.target.querySelector('button[type="submit"], button:not([type])');
+    if (submit) submit.disabled = true;
+  });
+
   document.querySelector("[data-nav-toggle]")?.addEventListener("click", event => {
     const content = document.querySelector("#main-nav");
     const open = content?.classList.toggle("open") ?? false;

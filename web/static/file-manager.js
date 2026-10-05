@@ -44,10 +44,6 @@
     if (!(target instanceof HTMLElement)) {
       return;
     }
-    if (target.hasAttribute("data-confirm") && !window.confirm(target.getAttribute("data-confirm"))) {
-      event.preventDefault();
-      return;
-    }
     var base = "/sites/" + window.location.pathname.split("/")[2];
     var name;
     if (target.hasAttribute("data-trash")) {

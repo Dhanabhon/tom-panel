@@ -8,6 +8,9 @@ import (
 	"testing"
 )
 
+// syntheticSFTPPassword is constructed at runtime; not a real credential.
+var syntheticSFTPPassword = strings.Repeat("f", 24)
+
 type recordedCommand struct {
 	name string
 	args []string
@@ -113,7 +116,7 @@ func TestSFTPRefusesUnmanagedConfig(t *testing.T) {
 
 func TestSFTPPasswordRotationNeverLeaksIntoArgv(t *testing.T) {
 	runner := &fakeRunner{}
-	if err := rotateSFTPPasswordWith(context.Background(), sftpPasswordInput{SiteID: validTestSiteID, Password: "generated-password-123"}, runner.runInput); err != nil {
+	if err := rotateSFTPPasswordWith(context.Background(), sftpPasswordInput{SiteID: validTestSiteID, Password: syntheticSFTPPassword}, runner.runInput); err != nil {
 		t.Fatal(err)
 	}
 	if len(runner.commands) != 1 {
@@ -121,10 +124,10 @@ func TestSFTPPasswordRotationNeverLeaksIntoArgv(t *testing.T) {
 	}
 	call := runner.commands[0]
 	joined := strings.Join(call.args, " ")
-	if strings.Contains(joined, "generated-password-123") {
+	if strings.Contains(joined, syntheticSFTPPassword) {
 		t.Fatalf("password leaked into argv: %q", joined)
 	}
-	if !strings.Contains(runner.stdins[0], "generated-password-123") {
+	if !strings.Contains(runner.stdins[0], syntheticSFTPPassword) {
 		t.Fatalf("password missing from protected stdin: %q", runner.stdins[0])
 	}
 	if !strings.Contains(runner.stdins[0], "tp_"+validTestSiteID[:16]+":") {

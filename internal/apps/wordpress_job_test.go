@@ -27,7 +27,7 @@ func (f *fakeDatabaseProvider) Create(_ context.Context, siteID, suffix string) 
 	f.calls = append(f.calls, suffix)
 	name, _ := databases.DatabaseName(siteID, suffix)
 	user, _ := databases.UserName(siteID, 1)
-	return databases.Database{Name: name}, databases.Credential{Username: user, Password: "wordpress-db-secret-1", Database: name}, nil
+	return databases.Database{Name: name}, databases.Credential{Username: user, Password: strings.Repeat("p", 24), Database: name}, nil
 }
 
 func newWordPressTestEnv(t *testing.T) (*WordPressProvisioner, *store.Store, string, *[]string) {
@@ -87,7 +87,7 @@ func TestPrepareInstallReturnsSecretsOnceAndStoresEncrypted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if credentials.AdminPassword == "" || credentials.DBPassword != "wordpress-db-secret-1" {
+	if credentials.AdminPassword == "" || credentials.DBPassword != strings.Repeat("p", 24) {
 		t.Fatalf("credentials incomplete: %+v", credentials)
 	}
 	var stored strings.Builder

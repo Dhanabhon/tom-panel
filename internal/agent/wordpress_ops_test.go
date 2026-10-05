@@ -11,6 +11,12 @@ import (
 	"github.com/Dhanabhon/tom-panel/internal/apps"
 )
 
+// Synthetic fixtures constructed at runtime; not real credentials.
+var (
+	syntheticWPDBPassword    = strings.Repeat("w", 24)
+	syntheticWPAdminPassword = strings.Repeat("g", 24)
+)
+
 type wpCallLog struct {
 	calls []apps.WPCLICall
 	failOn func(joinedArgs string) bool
@@ -29,8 +35,8 @@ func wpTestInput() apps.WordPressInstallInput {
 	return apps.WordPressInstallInput{
 		SiteID: dbTestSiteID, SiteURL: "https://wp.example.test",
 		Database: "tp_" + dbTestSiteID[:16] + "_wp", DBUser: "tp_" + dbTestSiteID[:16] + "_u1",
-		DBPassword: "db-secret-password-12345", AdminUser: "tom", AdminEmail: "tom@example.test",
-		AdminPassword: "admin-secret-password-1", Title: "Site", Policy: apps.DefaultWordPressPolicy(),
+		DBPassword: syntheticWPDBPassword, AdminUser: "tom", AdminEmail: "tom@example.test",
+		AdminPassword: syntheticWPAdminPassword, Title: "Site", Policy: apps.DefaultWordPressPolicy(),
 	}
 }
 
@@ -44,8 +50,8 @@ func TestInstallWordPressRunsBuiltCalls(t *testing.T) {
 		t.Fatal("no wp-cli calls executed")
 	}
 	for _, call := range log.calls {
-		if strings.Contains(strings.Join(call.Args, " "), "db-secret-password-12345") ||
-			strings.Contains(strings.Join(call.Args, " "), "admin-secret-password-1") {
+		if strings.Contains(strings.Join(call.Args, " "), syntheticWPDBPassword) ||
+			strings.Contains(strings.Join(call.Args, " "), syntheticWPAdminPassword) {
 			t.Fatalf("secret leaked into argv: %v", call.Args)
 		}
 	}

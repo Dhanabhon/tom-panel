@@ -45,5 +45,6 @@
 /.windsurf/
 /.github/copilot-instructions.md
 /docs/superpowers/
+/.mimosa/
 tests/browser/node_modules/
 dist/

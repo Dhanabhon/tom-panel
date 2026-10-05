@@ -7,6 +7,10 @@ import (
 	"testing"
 )
 
+// syntheticRedisPassword is constructed at runtime for ACL fixtures; it is
+// not a real credential.
+var syntheticRedisPassword = strings.Repeat("k", 24)
+
 type redisCallLog struct {
 	commands []string
 	fail     bool
@@ -24,7 +28,7 @@ func TestRedisACLCarriesSecretOnlyInStdin(t *testing.T) {
 	log := &redisCallLog{}
 	env := redisEnvironment{run: log.run}
 	if err := ensureRedisACL(context.Background(), redisACLInput{
-		SiteID: dbTestSiteID, Password: "redis-site-password-12345", Prefix: "tp_" + dbTestSiteID[:16],
+		SiteID: dbTestSiteID, Password: syntheticRedisPassword, Prefix: "tp_" + dbTestSiteID[:16],
 	}, env); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +42,7 @@ func TestRedisACLCarriesSecretOnlyInStdin(t *testing.T) {
 	if !strings.Contains(command, "~tp_"+dbTestSiteID[:16]+":*") {
 		t.Fatalf("key pattern not scoped to the site prefix: %s", command)
 	}
-	if !strings.Contains(command, "redis-site-password-12345") {
+	if !strings.Contains(command, syntheticRedisPassword) {
 		t.Fatalf("password missing from the protected command stream: %s", command)
 	}
 	if strings.Contains(command, "FLUSHALL") || strings.Contains(command, "FLUSHDB") {
@@ -61,12 +65,12 @@ func TestRedisACLRejectsUnsafePayloads(t *testing.T) {
 	log := &redisCallLog{}
 	env := redisEnvironment{run: log.run}
 	for _, input := range []redisACLInput{
-		{SiteID: "../evil", Password: "redis-site-password-12345", Prefix: "ok"},
+		{SiteID: "../evil", Password: syntheticRedisPassword, Prefix: "ok"},
 		{SiteID: dbTestSiteID, Password: "short", Prefix: "ok"},
-		{SiteID: dbTestSiteID, Password: "has space-in-password-1", Prefix: "ok"},
-		{SiteID: dbTestSiteID, Password: "redis-site-password-12345", Prefix: "with space"},
-		{SiteID: dbTestSiteID, Password: "redis-site-password-12345", Prefix: "with*star"},
-		{SiteID: dbTestSiteID, Password: "redis-site-password-12345"},
+		{SiteID: dbTestSiteID, Password: "has " + syntheticRedisPassword, Prefix: "ok"},
+		{SiteID: dbTestSiteID, Password: syntheticRedisPassword, Prefix: "with space"},
+		{SiteID: dbTestSiteID, Password: syntheticRedisPassword, Prefix: "with*star"},
+		{SiteID: dbTestSiteID, Password: syntheticRedisPassword},
 	} {
 		if err := ensureRedisACL(context.Background(), input, env); err == nil {
 			t.Fatalf("accepted unsafe payload: %+v", input)

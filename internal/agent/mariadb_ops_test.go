@@ -19,7 +19,8 @@ func testDatabaseUser(generation int) string {
 	return "tp_" + dbTestSiteID[:16] + "_u" + string(rune('0'+generation))
 }
 
-const dbTestPassword = "correct-horse-battery-123"
+// dbTestPassword is constructed at runtime; not a real credential.
+var dbTestPassword = strings.Repeat("c", 26)
 
 type recordedSQL struct {
 	query string
