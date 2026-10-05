@@ -5,10 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar">
-      <div><span class="crumb">Server / Domains &amp; SSL</span><strong class="mono">{{.ServerName}}</strong></div>
-      <form method="post" action="/logout"><input name="csrf_token" type="hidden" value="{{.CSRFToken}}"><button class="btn" type="submit">Sign out</button></form>
-    </header>
+    {{template "topbar" (topbar "Server / Domains & SSL" .ServerName "" "" .CSRFToken true)}}
     <main class="content">
       <header class="page-head"><div><h1>Domains &amp; SSL</h1><p>Only endpoints recorded as TomPanel-managed can be changed or removed.</p></div></header>
       <section class="panel">

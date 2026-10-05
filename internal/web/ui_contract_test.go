@@ -149,6 +149,41 @@ func TestNoEyebrowKickers(t *testing.T) {
 	}
 }
 
+func TestTopbarPartialHoisted(t *testing.T) {
+	for name, source := range templateSources(t) {
+		if name == "layout.html" {
+			continue
+		}
+		if strings.Contains(source, `class="topbar"`) {
+			t.Errorf("%s hand-rolls the topbar instead of the shared partial", name)
+		}
+	}
+	layout := templateSources(t)["layout.html"]
+	for _, required := range []string{`{{define "topbar"}}`, `action="/logout" data-logout`, `{{.ActionURL}}`} {
+		if !strings.Contains(layout, required) {
+			t.Fatalf("topbar partial missing %q", required)
+		}
+	}
+}
+
+func TestNoPromptDialogsInShippedJS(t *testing.T) {
+	for _, name := range []string{"static/app.js", "static/file-manager.js", "static/site-create.js", "static/laravel-deploy.js"} {
+		if strings.Contains(readEmbeddedAsset(t, name), "window.prompt") {
+			t.Errorf("%s still uses window.prompt for user input", name)
+		}
+	}
+}
+
+func TestHeadingsPairMonoDisplay(t *testing.T) {
+	css := readEmbeddedAsset(t, "static/app.css")
+	if !strings.Contains(css, "--font-display: ui-monospace") {
+		t.Fatal("display face must be the mono pairing for the control-panel identity")
+	}
+	if !strings.Contains(css, "h1, h2, h3 { font-family: var(--font-display)") {
+		t.Fatal("headings must reference the display token")
+	}
+}
+
 func TestEveryTemplateClassIsStyled(t *testing.T) {
 	css := readEmbeddedAsset(t, "static/app.css")
 	defined := map[string]bool{}

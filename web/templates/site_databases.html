@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Sites / Databases</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "topbar" (topbar "Sites / Databases" .Site.PrimaryDomain (printf "/sites/%s" .Site.ID) "Overview" .CSRFToken false)}}
     {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><h1>Databases</h1><p>Each database is owned by this site with its own users. Secrets are shown exactly once.</p></div></header>

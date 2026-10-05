@@ -76,7 +76,18 @@ func pageTemplates() (*template.Template, error) {
 		"jobTime":     jobTime,
 		"canCancel":   canCancel,
 		"canRetry":    canRetry,
+		"topbar":      topbarData,
 	}).ParseFS(webassets.FS, "templates/*.html")
+}
+
+// topbarData builds the argument map for the shared topbar partial:
+// crumb text, an optional mono path, an optional action link, whether to
+// render the sign-out form, and the CSRF token for that form.
+func topbarData(crumb, path, actionURL, actionLabel, csrf string, logout bool) map[string]any {
+	return map[string]any{
+		"Crumb": crumb, "Path": path, "ActionURL": actionURL,
+		"ActionLabel": actionLabel, "Logout": logout, "CSRFToken": csrf,
+	}
 }
 
 func (h *DashboardHandlers) Handler() http.Handler {

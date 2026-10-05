@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Sites / Logs</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "topbar" (topbar "Sites / Logs" .Site.PrimaryDomain (printf "/sites/%s" .Site.ID) "Overview" .CSRFToken false)}}
     {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><h1>Logs</h1><p>TomPanel-owned sources only, capped at 400 lines per read with inline secrets redacted.</p></div></header>

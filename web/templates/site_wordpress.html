@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Sites / Applications</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "topbar" (topbar "Sites / Applications" .Site.PrimaryDomain (printf "/sites/%s" .Site.ID) "Overview" .CSRFToken false)}}
     {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><h1>WordPress</h1><p>Guided install, independent update channels, cron, and cache controls.</p></div></header>

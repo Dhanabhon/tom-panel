@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Server / Services</span><strong class="mono">{{.ServerName}}</strong></div></header>
+    {{template "topbar" (topbar "Server / Services" .ServerName "" "" .CSRFToken false)}}
     <main class="content">
       <header class="page-head"><div><h1>Services</h1><p>Only TomPanel-managed units appear here. Restarts require recent re-authentication and show their site impact first.</p></div></header>
       {{if .Notice}}<p class="notice"><strong>Done</strong><span>{{.Notice}}</span></p>{{end}}

@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Server / System</span><strong class="mono">{{.ServerName}}</strong></div></header>
+    {{template "topbar" (topbar "Server / System" .ServerName "" "" .CSRFToken false)}}
     <main class="content">
       <header class="page-head"><div><h1>System</h1><p>Current resource use without stored time series. Update actions live in their own guided flows.</p></div></header>
       {{if .Warning}}<p class="notice warn"><strong>Attention</strong><span>{{.Warning}}</span></p>{{end}}

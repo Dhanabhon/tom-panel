@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Sites / Applications</span><strong class="mono">{{.Site.PrimaryDomain}}</strong></div><a class="btn" href="/sites/{{.Site.ID}}">Overview</a></header>
+    {{template "topbar" (topbar "Sites / Applications" .Site.PrimaryDomain (printf "/sites/%s" .Site.ID) "Overview" .CSRFToken false)}}
     {{template "site-tabs" .}}
     <main class="content">
       <header class="page-head"><div><h1>Laravel</h1><p>One pinned pipeline: checkout, install, optional build, confirmed migrations, health check, atomic activation.</p></div></header>

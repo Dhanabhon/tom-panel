@@ -5,7 +5,7 @@
 <body>
   {{template "navigation" .}}
   <div class="page">
-    <header class="topbar"><div><span class="crumb">Server / Activity</span><strong class="mono">{{.ServerName}}</strong></div></header>
+    {{template "topbar" (topbar "Server / Activity" .ServerName "" "" "" false)}}
     <main class="content">
       <header class="page-head"><div><h1>Activity</h1><p>Background jobs and audited configuration changes, newest first.</p></div></header>
       <section class="panel">

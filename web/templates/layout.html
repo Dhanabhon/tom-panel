@@ -9,6 +9,16 @@
 
 {{define "brand"}}<img class="brand-logo" src="/static/tompanel-logo.png" alt="TomPanel" width="512" height="115">{{end}}
 
+{{define "topbar"}}
+<header class="topbar">
+  <div><span class="crumb">{{.Crumb}}</span>{{if .Path}} <strong class="mono">{{.Path}}</strong>{{end}}</div>
+  <div class="topbar-actions">
+    {{if .ActionURL}}<a class="btn" href="{{.ActionURL}}">{{.ActionLabel}}</a>{{end}}
+    {{if .Logout}}<form method="post" action="/logout" data-logout><input name="csrf_token" type="hidden" value="{{.CSRFToken}}"><button class="btn" type="submit">Sign out</button></form>{{end}}
+  </div>
+</header>
+{{end}}
+
 {{define "navigation"}}
 <nav class="side" aria-label="Main navigation">
   <a class="brand" href="/">{{template "brand" .}}</a>
