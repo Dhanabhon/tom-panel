@@ -70,6 +70,33 @@ func TestSetupURLRejectsTokenFlag(t *testing.T) {
 	}
 }
 
+func TestVersionCommandPrintsBuildWithoutOpeningStore(t *testing.T) {
+	var output bytes.Buffer
+	opened := false
+	err := runWith(context.Background(), []string{"version"}, os.Stdin, &output, false,
+		func(context.Context, config.Config) (*auth.Service, error) {
+			opened = true
+			return nil, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opened {
+		t.Fatal("version must not open the store")
+	}
+	if !strings.Contains(output.String(), "tompanel dev") {
+		t.Fatalf("version output = %q", output.String())
+	}
+}
+
+func TestUnknownCommandListsDoctorAndVersion(t *testing.T) {
+	err := runWith(context.Background(), []string{"frobnicate"}, os.Stdin, &bytes.Buffer{}, true,
+		func(context.Context, config.Config) (*auth.Service, error) { return nil, nil })
+	if err == nil || !strings.Contains(err.Error(), "doctor") || !strings.Contains(err.Error(), "version") {
+		t.Fatalf("usage = %v", err)
+	}
+}
+
 func writeSetupURLConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")

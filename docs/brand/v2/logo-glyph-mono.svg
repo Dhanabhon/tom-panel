@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="TomPanel mono glyph">
+  <!-- Single-color glyph (inherits currentColor): stamps, single-color print -->
+  <rect x="140" y="126" width="232" height="52" fill="currentColor"/>
+  <rect x="230" y="126" width="52" height="236" fill="currentColor"/>
+  <circle cx="346" cy="336" r="26" fill="currentColor"/>
+</svg>

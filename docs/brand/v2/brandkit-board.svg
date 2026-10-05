@@ -1,0 +1,256 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1920" width="2560" height="1920">
+  <defs>
+    <g id="mf">
+      <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="#2563D9" stroke-width="40"/>
+      <rect x="140" y="126" width="232" height="52" fill="#202633"/>
+      <rect x="230" y="126" width="52" height="236" fill="#202633"/>
+      <circle cx="346" cy="336" r="26" fill="#147A4B"/>
+    </g>
+    <g id="mfd">
+      <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="#F7F8FA" stroke-width="40"/>
+      <rect x="140" y="126" width="232" height="52" fill="#F7F8FA"/>
+      <rect x="230" y="126" width="52" height="236" fill="#F7F8FA"/>
+      <circle cx="346" cy="336" r="26" fill="#2FBF71"/>
+    </g>
+    <g id="ms">
+      <rect width="512" height="512" rx="116" fill="#202633"/>
+      <rect x="140" y="124" width="232" height="56" fill="#F7F8FA"/>
+      <rect x="228" y="124" width="56" height="264" fill="#F7F8FA"/>
+      <circle cx="344" cy="360" r="28" fill="#2FBF71"/>
+    </g>
+    <pattern id="bpgrid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#EDF2F9" stroke-width="1"/>
+    </pattern>
+    <pattern id="worldgrid" width="56" height="56" patternUnits="userSpaceOnUse">
+      <path d="M56 0H0V56" fill="none" stroke="#FFFFFF" stroke-width="1" opacity="0.03"/>
+    </pattern>
+    <filter id="pshadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+  </defs>
+
+  <rect width="2560" height="1920" fill="#12151A"/>
+
+  <!-- ══════════ ROW 1 ══════════ -->
+
+  <!-- 01 · MARK (paper) -->
+  <g>
+    <rect x="64" y="64" width="784" height="570" rx="20" fill="#F7F8FA" filter="url(#pshadow)"/>
+    <text x="92" y="108" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7A828F">01 · MARK</text>
+    <use href="#mf" transform="translate(267,108) scale(0.4883)"/>
+    <text x="382" y="452" text-anchor="middle" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="74" font-weight="700" letter-spacing="3" fill="#202633">tompanel</text>
+    <circle cx="590" cy="430" r="21" fill="#147A4B"/>
+    <text x="392" y="512" text-anchor="middle" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2" fill="#687181">OPEN-SOURCE PANEL · ONE VPS · ONE ADMIN</text>
+  </g>
+
+  <!-- 02 · CONSTRUCTION (white) -->
+  <g>
+    <rect x="888" y="64" width="784" height="570" rx="20" fill="#FFFFFF" filter="url(#pshadow)"/>
+    <rect x="888" y="64" width="784" height="570" rx="20" fill="url(#bpgrid)"/>
+    <text x="916" y="108" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7A828F">02 · CONSTRUCTION</text>
+    <g transform="translate(930,150) scale(0.66)">
+      <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="#2563D9" stroke-width="4.5"/>
+      <rect x="140" y="126" width="232" height="52" fill="#E7EEFB" stroke="#2563D9" stroke-width="3"/>
+      <rect x="230" y="126" width="52" height="236" fill="#E7EEFB" stroke="#2563D9" stroke-width="3"/>
+      <circle cx="346" cy="336" r="26" fill="#DFF3E8" stroke="#147A4B" stroke-width="3"/>
+      <line x1="372" y1="80" x2="372" y2="450" stroke="#9AAEDB" stroke-width="2.2" stroke-dasharray="7 8"/>
+      <line x1="90" y1="362" x2="470" y2="362" stroke="#9AAEDB" stroke-width="2.2" stroke-dasharray="7 8"/>
+      <line x1="90" y1="178" x2="470" y2="178" stroke="#9AAEDB" stroke-width="2.2" stroke-dasharray="7 8"/>
+      <circle cx="372" cy="362" r="7" fill="none" stroke="#147A4B" stroke-width="2.2"/>
+    </g>
+    <text x="1150" y="142" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" fill="#2563D9">R96 · stroke 52</text>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace">
+      <rect x="1300" y="176" width="26" height="26" rx="6" fill="#2563D9"/>
+      <text x="1354" y="196" font-size="19" font-weight="700" fill="#202633">FRAME</text>
+      <text x="1354" y="222" font-size="14" fill="#687181">the audited boundary</text>
+      <rect x="1300" y="286" width="26" height="26" rx="6" fill="#202633"/>
+      <text x="1354" y="306" font-size="19" font-weight="700" fill="#202633">T · ONE TOWER</text>
+      <text x="1354" y="332" font-size="14" fill="#687181">a single machine, mono weight</text>
+      <circle cx="1313" cy="416" r="13" fill="#147A4B"/>
+      <text x="1354" y="422" font-size="19" font-weight="700" fill="#202633">HEALTHZ DOT</text>
+      <text x="1354" y="448" font-size="14" fill="#687181">green = verified state</text>
+      <text x="930" y="580" font-size="13" letter-spacing="1.5" fill="#99A1AC">DOT EDGES LOCK TO CROSSBAR + BASELINE · 28-UNIT GRID</text>
+    </g>
+  </g>
+
+  <!-- 03 · APPLICATION (ink) -->
+  <g>
+    <rect x="1712" y="64" width="784" height="570" rx="20" fill="#202633" filter="url(#pshadow)"/>
+    <text x="1740" y="108" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7E8794">03 · APPLICATION</text>
+    <rect x="1768" y="128" width="672" height="420" rx="14" fill="#262C37"/>
+    <path d="M1768 142 q0-14 14-14 h644 q14 0 14 14 v42 h-672 z" fill="#1A1F28"/>
+    <circle cx="1796" cy="156" r="5.5" fill="#3D4653"/><circle cx="1818" cy="156" r="5.5" fill="#3D4653"/><circle cx="1840" cy="156" r="5.5" fill="#3D4653"/>
+    <rect x="1868" y="140" width="410" height="32" rx="16" fill="#141821"/>
+    <text x="1886" y="161" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="14" fill="#8B95A3">ssh -L 8080 → 127.0.0.1:8080</text>
+    <rect x="1768" y="184" width="184" height="364" fill="#1D222C"/>
+    <use href="#mfd" transform="translate(1790,202) scale(0.0664)"/>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15">
+      <rect x="1768" y="276" width="3" height="22" fill="#2563D9"/>
+      <text x="1800" y="293" fill="#F7F8FA">Dashboard</text>
+      <text x="1800" y="337" fill="#8B95A3">Sites</text>
+      <text x="1800" y="381" fill="#8B95A3">Domains &amp; SSL</text>
+      <text x="1800" y="425" fill="#8B95A3">Services</text>
+      <text x="1800" y="469" fill="#8B95A3">Activity</text>
+      <text x="1800" y="513" fill="#8B95A3">System</text>
+    </g>
+    <text x="1988" y="254" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="26" font-weight="700" fill="#F7F8FA">srv-01</text>
+    <rect x="1988" y="276" width="122" height="34" rx="17" fill="#12291C"/>
+    <circle cx="2008" cy="293" r="5.5" fill="#2FBF71"/>
+    <text x="2024" y="298" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="14" fill="#2FBF71">healthy</text>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace">
+      <rect x="1988" y="336" width="136" height="84" rx="12" fill="#1D222C"/>
+      <text x="2056" y="368" text-anchor="middle" font-size="11" letter-spacing="1.5" fill="#7E8794">SITES</text>
+      <text x="2056" y="402" text-anchor="middle" font-size="26" font-weight="700" fill="#F7F8FA">3</text>
+      <rect x="2140" y="336" width="136" height="84" rx="12" fill="#1D222C"/>
+      <text x="2208" y="368" text-anchor="middle" font-size="11" letter-spacing="1.5" fill="#7E8794">SSL</text>
+      <text x="2208" y="402" text-anchor="middle" font-size="26" font-weight="700" fill="#2FBF71">ok</text>
+      <rect x="2292" y="336" width="136" height="84" rx="12" fill="#1D222C"/>
+      <text x="2360" y="368" text-anchor="middle" font-size="11" letter-spacing="1.5" fill="#7E8794">JOBS</text>
+      <text x="2360" y="402" text-anchor="middle" font-size="26" font-weight="700" fill="#F7F8FA">0</text>
+      <text x="1988" y="472" font-size="14" fill="#5F6873">$ tompanel status</text>
+      <text x="1988" y="510" font-size="14" fill="#5F6873">uptime 41d · load 0.14 · disk 41%</text>
+    </g>
+  </g>
+
+  <!-- ══════════ ROW 2 ══════════ -->
+
+  <!-- 04 · PROMISE (deep) -->
+  <g>
+    <rect x="64" y="674" width="784" height="570" rx="20" fill="#171A20" filter="url(#pshadow)"/>
+    <text x="92" y="718" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#6E7683">04 · PROMISE</text>
+    <text x="92" y="900" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="78" font-weight="700" letter-spacing="3" fill="#B7BEC9">One server.</text>
+    <text x="92" y="1010" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="78" font-weight="700" letter-spacing="3" fill="#F7F8FA">Under control</text>
+    <circle cx="784" cy="989" r="20" fill="#2FBF71"/>
+    <text x="92" y="1096" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2" fill="#5F6873">AUDITABLE · HARDENED · SINGLE-ADMIN</text>
+  </g>
+
+  <!-- 05 · COLOR (paper) -->
+  <g>
+    <rect x="888" y="674" width="784" height="570" rx="20" fill="#F7F8FA" filter="url(#pshadow)"/>
+    <text x="916" y="718" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7A828F">05 · COLOR</text>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace">
+      <rect x="932" y="760" width="130" height="290" rx="12" fill="#F7F8FA" stroke="#DDE1E8" stroke-width="2"/>
+      <text x="932" y="1088" font-size="16" font-weight="700" fill="#202633">Paper</text>
+      <text x="932" y="1112" font-size="14" fill="#5C6472">#F7F8FA</text>
+      <rect x="1075" y="760" width="130" height="290" rx="12" fill="#202633"/>
+      <text x="1075" y="1088" font-size="16" font-weight="700" fill="#202633">Ink</text>
+      <text x="1075" y="1112" font-size="14" fill="#5C6472">#202633</text>
+      <rect x="1218" y="760" width="130" height="290" rx="12" fill="#2563D9"/>
+      <text x="1218" y="1088" font-size="16" font-weight="700" fill="#202633">Signal</text>
+      <text x="1218" y="1112" font-size="14" fill="#5C6472">#2563D9</text>
+      <rect x="1361" y="760" width="130" height="290" rx="12" fill="#147A4B"/>
+      <text x="1361" y="1088" font-size="16" font-weight="700" fill="#202633">Ops Green</text>
+      <text x="1361" y="1112" font-size="14" fill="#5C6472">#147A4B</text>
+      <rect x="1504" y="760" width="130" height="290" rx="12" fill="#DDE1E8"/>
+      <text x="1504" y="1088" font-size="16" font-weight="700" fill="#202633">Rule</text>
+      <text x="1504" y="1112" font-size="14" fill="#5C6472">#DDE1E8</text>
+      <rect x="932" y="1160" width="16" height="16" rx="4" fill="#93620B"/>
+      <text x="958" y="1173" font-size="13" fill="#687181">warn</text>
+      <rect x="1030" y="1160" width="16" height="16" rx="4" fill="#B4232C"/>
+      <text x="1056" y="1173" font-size="13" fill="#687181">bad</text>
+      <text x="1634" y="1173" text-anchor="end" font-size="12" letter-spacing="1.5" fill="#99A1AC">STATE COLORS — FROM PRODUCT UI</text>
+    </g>
+  </g>
+
+  <!-- 06 · TYPE (white) -->
+  <g>
+    <rect x="1712" y="674" width="784" height="570" rx="20" fill="#FFFFFF" filter="url(#pshadow)"/>
+    <text x="1740" y="718" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7A828F">06 · TYPE</text>
+    <line x1="2100" y1="760" x2="2100" y2="1180" stroke="#ECF0F5" stroke-width="2"/>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace">
+      <text x="1740" y="770" font-size="13" letter-spacing="2" fill="#99A1AC">DISPLAY · MONO</text>
+      <text x="1740" y="870" font-size="66" font-weight="700" fill="#202633">TomPanel</text>
+      <text x="1740" y="952" font-size="66" fill="#454D5C">tompanel</text>
+      <text x="1740" y="1010" font-size="27" fill="#687181">0123456789 → $ ~ %</text>
+      <text x="1740" y="1076" font-size="14" fill="#99A1AC">mono headings — terminal at heart</text>
+    </g>
+    <g font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+      <text x="2140" y="770" font-family="Menlo, monospace" font-size="13" letter-spacing="2" fill="#99A1AC">BODY · INTER</text>
+      <text x="2140" y="880" font-size="100" font-weight="600" fill="#202633">Aa</text>
+      <text x="2140" y="934" font-size="18" font-weight="500" fill="#454D5C">ABCDEFGHIJKLMNOPQRSTUVWXYZ</text>
+      <text x="2140" y="966" font-size="18" fill="#687181">abcdefghijklmnopqrstuvwxyz</text>
+      <text x="2140" y="998" font-size="16" fill="#99A1AC">0123456789</text>
+      <text x="2140" y="1054" font-size="19" fill="#687181">Multiple isolated websites,</text>
+      <text x="2140" y="1084" font-size="19" fill="#687181">one quiet server to run them on.</text>
+    </g>
+  </g>
+
+  <!-- ══════════ ROW 3 ══════════ -->
+
+  <!-- 07 · HARDWARE (graphite) -->
+  <g>
+    <rect x="64" y="1284" width="784" height="570" rx="20" fill="#1E232B" filter="url(#pshadow)"/>
+    <text x="92" y="1328" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7E8794">07 · HARDWARE</text>
+    <rect x="120" y="1356" width="544" height="360" rx="18" fill="#14181F" stroke="#2C333F" stroke-width="2"/>
+    <g stroke="#3A424F" stroke-width="1.5" fill="none">
+      <circle cx="150" cy="1386" r="7"/><circle cx="634" cy="1386" r="7"/>
+      <circle cx="150" cy="1686" r="7"/><circle cx="634" cy="1686" r="7"/>
+    </g>
+    <use href="#mfd" transform="translate(333,1422) scale(0.2305)"/>
+    <text x="392" y="1610" text-anchor="middle" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="24" font-weight="700" letter-spacing="6" fill="#F7F8FA">TOMPANEL</text>
+    <text x="392" y="1648" text-anchor="middle" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="13" letter-spacing="2" fill="#7E8794">SRV-01 · UBUNTU 24.04 LTS · AMD64</text>
+    <circle cx="600" cy="1686" r="5" fill="#2FBF71"/>
+    <circle cx="600" cy="1686" r="10" fill="none" stroke="#2FBF71" stroke-width="1.5" opacity="0.35"/>
+    <text x="120" y="1772" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="13" letter-spacing="1.5" fill="#6E7683">RACK TAG · ETCHED ALUMINIUM</text>
+  </g>
+
+  <!-- 08 · WORLD (deep field) -->
+  <g>
+    <rect x="888" y="1284" width="784" height="570" rx="20" fill="#10141A" filter="url(#pshadow)"/>
+    <rect x="888" y="1284" width="784" height="570" rx="20" fill="url(#worldgrid)"/>
+    <text x="916" y="1328" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#66707C">08 · WORLD</text>
+    <g>
+      <circle cx="1280" cy="1548" r="215" fill="none" stroke="#2FBF71" stroke-width="1.5" opacity="0.1"/>
+      <circle cx="1280" cy="1548" r="155" fill="none" stroke="#2FBF71" stroke-width="1.5" opacity="0.2"/>
+      <circle cx="1280" cy="1548" r="95" fill="none" stroke="#2FBF71" stroke-width="1.5" opacity="0.38"/>
+    </g>
+    <line x1="888" y1="1782" x2="1672" y2="1782" stroke="#262D38" stroke-width="2"/>
+    <rect x="1232" y="1548" width="96" height="234" rx="8" fill="#1B212B" stroke="#303A48" stroke-width="1.5"/>
+    <rect x="1250" y="1584" width="60" height="5" rx="2.5" fill="#2A3340"/>
+    <rect x="1250" y="1604" width="60" height="5" rx="2.5" fill="#2A3340"/>
+    <rect x="1250" y="1624" width="60" height="5" rx="2.5" fill="#2A3340"/>
+    <circle cx="1280" cy="1548" r="26" fill="#2FBF71" opacity="0.14"/>
+    <circle cx="1280" cy="1548" r="16" fill="#2FBF71" opacity="0.3"/>
+    <circle cx="1280" cy="1548" r="9" fill="#2FBF71"/>
+    <text x="1628" y="1332" text-anchor="end" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="13" letter-spacing="1.5" fill="#3E9C6B">healthz · 200 OK</text>
+    <text x="916" y="1826" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="3" fill="#5F6873">ONE MACHINE, WATCHED.</text>
+  </g>
+
+  <!-- 09 · SYSTEM (white) -->
+  <g>
+    <rect x="1712" y="1284" width="784" height="570" rx="20" fill="#FFFFFF" filter="url(#pshadow)"/>
+    <text x="1740" y="1328" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" letter-spacing="2.5" fill="#7A828F">09 · SYSTEM</text>
+    <use href="#ms" transform="translate(1748,1404) scale(0.03125)"/>
+    <use href="#ms" transform="translate(1792,1396) scale(0.046875)"/>
+    <use href="#ms" transform="translate(1848,1388) scale(0.0625)"/>
+    <use href="#ms" transform="translate(1916,1372) scale(0.09375)"/>
+    <use href="#ms" transform="translate(2012,1348) scale(0.140625)"/>
+    <use href="#ms" transform="translate(2200,1292) scale(0.25)"/>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="12" fill="#99A1AC" text-anchor="middle">
+      <text x="1756" y="1452">16</text>
+      <text x="1804" y="1452">24</text>
+      <text x="1864" y="1452">32</text>
+      <text x="1940" y="1452">48</text>
+      <text x="2048" y="1452">72</text>
+      <text x="2264" y="1452">128</text>
+    </g>
+    <rect x="1748" y="1498" width="126" height="42" rx="21" fill="#E9F7EF"/>
+    <circle cx="1774" cy="1519" r="5" fill="#147A4B"/>
+    <text x="1790" y="1524" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" fill="#147A4B">healthy</text>
+    <rect x="1890" y="1498" width="112" height="42" rx="21" fill="none" stroke="#DDE1E8" stroke-width="2"/>
+    <text x="1946" y="1524" text-anchor="middle" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="15" fill="#454D5C">v1.2.0</text>
+    <rect x="2018" y="1498" width="286" height="42" rx="21" fill="#F1F3F6"/>
+    <text x="2044" y="1524" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="14" fill="#202633">ssh -L 8080:127.0.0.1:8080</text>
+    <rect x="1748" y="1568" width="656" height="150" rx="12" fill="#202633"/>
+    <g font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace">
+      <text x="1776" y="1608" font-size="16" fill="#F7F8FA">$ tompanel status</text>
+      <text x="1776" y="1640" font-size="14" fill="#8B95A3">sites 3 · ssl ok · jobs 0 queued · load 0.14</text>
+      <text x="1776" y="1676" font-size="14" fill="#2FBF71">● all systems green</text>
+    </g>
+    <text x="2404" y="1798" text-anchor="end" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="12" letter-spacing="1.5" fill="#99A1AC">CLEAR SPACE = DOT DIAMETER</text>
+  </g>
+
+  <!-- footer -->
+  <text x="64" y="1888" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="14" letter-spacing="2" fill="#5A626E">TOMPANEL · IDENTITY KIT V2 · 2026</text>
+  <text x="2496" y="1888" text-anchor="end" font-family="Menlo, 'Cascadia Mono', 'SF Mono', Consolas, monospace" font-size="14" letter-spacing="2" fill="#5A626E">VECTOR-FIRST · 09 PANELS</text>
+</svg>

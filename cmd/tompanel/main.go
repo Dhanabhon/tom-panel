@@ -18,6 +18,9 @@ import (
 	"golang.org/x/term"
 )
 
+// buildVersion is overridden at build time via -ldflags "-X main.buildVersion=...".
+var buildVersion = "dev"
+
 func main() {
 	if err := run(context.Background(), os.Args[1:]); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -38,10 +41,16 @@ func runWith(ctx context.Context, args []string, input *os.File, output io.Write
 	}
 	remaining := flags.Args()
 	setupURL := len(remaining) == 1 && remaining[0] == "setup-url"
+	version := len(remaining) == 1 && remaining[0] == "version"
+	doctor := len(remaining) == 1 && remaining[0] == "doctor"
 	migrate := len(remaining) == 1 && remaining[0] == "migrate"
 	admin := len(remaining) == 2 && remaining[0] == "admin"
-	if !setupURL && !migrate && !admin {
-		return errors.New("usage: tompanel [-config path] setup-url|migrate|admin reset-password|set-username|reset-totp")
+	if !setupURL && !version && !doctor && !migrate && !admin {
+		return errors.New("usage: tompanel [-config path] setup-url|migrate|version|doctor|admin reset-password|set-username|reset-totp")
+	}
+	if version {
+		_, err := fmt.Fprintf(output, "tompanel %s\n", buildVersion)
+		return err
 	}
 	if setupURL && !outputTTY {
 		return errors.New("setup URL output requires an interactive terminal")
@@ -59,6 +68,9 @@ func runWith(ctx context.Context, args []string, input *os.File, output io.Write
 		_ = service
 		_, err = fmt.Fprintln(output, "migrations applied")
 		return err
+	}
+	if doctor {
+		return cli.RunDoctor(ctx, cfg, output)
 	}
 	service, err := openService(ctx, cfg)
 	if err != nil {

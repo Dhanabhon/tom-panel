@@ -101,6 +101,19 @@ ssh -L 8080:127.0.0.1:8080 user@server
 
 Then open `http://127.0.0.1:8080` locally.
 
+## Server diagnostics
+
+Run a read-only health report (configuration, master key, database, agent
+socket, nginx, firewall, systemd, disk) — it never changes anything:
+
+```bash
+tompanel -config /etc/tompanel/config.toml doctor
+tompanel version
+```
+
+`doctor` exits non-zero when any check fails, so it is safe to use from
+monitoring scripts. Paste its output when asking for support.
+
 ## Administrator recovery
 
 Administrator credentials cannot be changed from an unauthenticated browser flow. Run recovery commands directly on the server:

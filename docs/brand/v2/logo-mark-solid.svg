@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="TomPanel solid mark">
+  <!-- Solid chip variant: app icon, favicon, small sizes -->
+  <rect width="512" height="512" rx="116" fill="#202633"/>
+  <rect x="140" y="124" width="232" height="56" fill="#F7F8FA"/>
+  <rect x="228" y="124" width="56" height="264" fill="#F7F8FA"/>
+  <circle cx="344" cy="360" r="28" fill="#2FBF71"/>
+</svg>
