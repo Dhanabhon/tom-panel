@@ -4,6 +4,26 @@ TomPanel is an open-source, web-based control panel for managing a single Linux 
 
 > TomPanel is under active development. The current codebase provides the control-plane foundation and is not ready for production hosting yet.
 
+## Quick start
+
+On a fresh Ubuntu Server 24.04 LTS (AMD64) VPS, as root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dhanabhon/tom-panel/main/scripts/bootstrap.sh -o tompanel-bootstrap.sh
+sh tompanel-bootstrap.sh
+```
+
+The bootstrap downloads the latest release, verifies its SHA-256, installs
+TomPanel with hardened defaults (OpenSSH is allowed before UFW enables), and
+prints the SSH tunnel command plus a one-time setup URL. The browser first-run
+setup then creates your administrator account, TOTP secret, and recovery codes.
+
+```bash
+sh tompanel-bootstrap.sh 1.2.0     # pin a release version
+sh tompanel-bootstrap.sh --check   # preflight only, changes nothing
+sh tompanel-bootstrap.sh --offline ./tompanel_1.2.0_amd64.deb
+```
+
 ## Goals
 
 - Lightweight and reliable on a small VPS

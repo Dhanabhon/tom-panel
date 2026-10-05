@@ -2,6 +2,7 @@
 # TomPanel guided installer for Ubuntu Server 24.04 LTS (AMD64).
 # Stops on stack conflicts, never turns an existing host into a managed host
 # by inference, and enables private access only.
+# TOMPANEL_CHECK=1 runs the preflight checks and exits without changes.
 set -eu
 
 fail() { echo "ERROR: $1" >&2; exit 1; }
@@ -19,14 +20,24 @@ fi
 [ -d /etc/tompanel ] && fail "/etc/tompanel already exists; this host is not fresh"
 systemctl is-active --quiet tompanel.service 2>/dev/null && fail "tompanel is already installed"
 if [ -f /etc/nginx/sites-enabled/default ] && grep -q "default_server" /etc/nginx/sites-enabled/default 2>/dev/null; then
-    note "disabling the stock Nginx default site"
-    rm -f /etc/nginx/sites-enabled/default
+    if [ "${TOMPANEL_CHECK:-}" = "1" ]; then
+        note "preflight: the stock Nginx default site would be disabled"
+    else
+        note "disabling the stock Nginx default site"
+        rm -f /etc/nginx/sites-enabled/default
+    fi
 fi
 
 MEMORY_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 [ "$MEMORY_MB" -ge 1024 ] || fail "at least 1 GB of memory is required"
 ROOT_GB=$(df -BG / | awk 'NR==2 {gsub("G",""); print $4}')
 [ "$ROOT_GB" -ge 10 ] || fail "at least 10 GB of free disk is required"
+
+# Preflight mode: report suitability and exit before any change.
+if [ "${TOMPANEL_CHECK:-}" = "1" ]; then
+    note "preflight OK: memory ${MEMORY_MB} MB, free disk ${ROOT_GB} GB, no conflicts"
+    exit 0
+fi
 
 # Public IPv4 reachability is reported but never required.
 if command -v curl >/dev/null 2>&1; then

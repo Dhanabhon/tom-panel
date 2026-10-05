@@ -103,3 +103,36 @@ func TestLogrotateKeepsBoundedHistory(t *testing.T) {
 		t.Fatal("log rotation must stay bounded")
 	}
 }
+
+func TestBootstrapVerifiesBeforeInstall(t *testing.T) {
+	script := readFile(t, "scripts/bootstrap.sh")
+	for _, want := range []string{
+		"sha256sum -c",
+		"checksum mismatch; refusing to install",
+		"releases/latest",
+		"--offline",
+		"--check",
+		"[ -t 1 ]",
+		"setup-url",
+		"ssh -L 8080:127.0.0.1:8080",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("bootstrap missing %q", want)
+		}
+	}
+}
+
+func TestInstallerSupportsPreflightCheck(t *testing.T) {
+	script := readFile(t, "scripts/install.sh")
+	checkIndex := strings.Index(script, "TOMPANEL_CHECK")
+	swapIndex := strings.Index(script, "creating a 2 GB swapfile")
+	if checkIndex < 0 || swapIndex < 0 {
+		t.Fatal("installer lacks preflight mode")
+	}
+	if checkIndex > swapIndex {
+		t.Fatal("preflight exit must run before any host change (swap)")
+	}
+	if !strings.Contains(script, "preflight OK") {
+		t.Fatal("preflight success message missing")
+	}
+}

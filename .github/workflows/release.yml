@@ -29,3 +29,4 @@ jobs:
           files: |
             dist/tompanel_${VERSION}_amd64.deb
             dist/tompanel_${VERSION}_amd64.deb.sha256
+            scripts/install.sh

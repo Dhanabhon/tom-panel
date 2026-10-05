@@ -31,3 +31,7 @@ RUN node --check web/static/app.js \
     && node --check web/static/site-create.js \
     && node --check web/static/file-manager.js \
     && node --check web/static/laravel-deploy.js
+RUN shellcheck scripts/*.sh packaging/debian/postinst packaging/debian/prerm
+RUN TOMPANEL_CHECK=1 sh scripts/install.sh /dev/null > /tmp/preflight.out \
+    && grep -q "preflight OK" /tmp/preflight.out \
+    && ! test -d /etc/tompanel
