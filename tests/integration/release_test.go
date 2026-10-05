@@ -76,6 +76,7 @@ func TestInstallerRefusesForeignStacksAndKeepsSSHFirst(t *testing.T) {
 		"ufw --force enable",
 		"TOMPANEL_PHP_PPA",
 		"PANEL_DOMAIN",
+		"PANEL_PORT",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("installer missing %q", want)

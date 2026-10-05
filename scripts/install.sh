@@ -93,12 +93,15 @@ if [ -n "$SETUP_URL" ]; then
     echo "  $SETUP_URL"
 fi
 if [ -n "${PANEL_DOMAIN:-}" ]; then
+    PANEL_PORT="${PANEL_PORT:-4884}"
     echo
-    echo "Panel domain requested: ${PANEL_DOMAIN}"
-    echo "1) Point DNS for ${PANEL_DOMAIN} at this server (A/AAAA record;"
-    echo "   behind Cloudflare proxy only ports 443 or 8443 work)."
+    echo "Panel domain requested: ${PANEL_DOMAIN} on port ${PANEL_PORT}"
+    echo "1) Point DNS for ${PANEL_DOMAIN} at this server (A/AAAA record)."
+    echo "   Behind Cloudflare proxy only ports 443 or 8443 work — port"
+    echo "   ${PANEL_PORT} requires DNS-only (grey cloud) or direct access."
     echo "2) After first-run setup, open Settings → Panel endpoint, choose"
-    echo "   Public HTTPS, enter ${PANEL_DOMAIN} and an ACME email, then queue"
-    echo "   the change. TomPanel issues the certificate, health-checks the new"
+    echo "   Public HTTPS, enter ${PANEL_DOMAIN}, an ACME email, and port"
+    echo "   ${PANEL_PORT} (or your own non-standard port), then queue the"
+    echo "   change. TomPanel issues the certificate, health-checks the new"
     echo "   address, and keeps the private route until it is healthy."
 fi

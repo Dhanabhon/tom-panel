@@ -148,9 +148,12 @@ echo
 echo "Uninstall later with: apt-get remove tompanel (sites and backups are"
 echo "preserved; see scripts/uninstall.sh in the repository for data removal)."
 if [ -n "${PANEL_DOMAIN:-}" ]; then
+    PANEL_PORT="${PANEL_PORT:-4884}"
     echo
     echo "Panel domain: after first-run setup, open Settings → Panel endpoint,"
-    echo "choose Public HTTPS, enter ${PANEL_DOMAIN} and an ACME email, and queue"
-    echo "the change. DNS first: point ${PANEL_DOMAIN} at this server (behind"
-    echo "Cloudflare proxy only ports 443 or 8443 work)."
+    echo "choose Public HTTPS, enter ${PANEL_DOMAIN}, an ACME email, and port"
+    echo "${PANEL_PORT} (or your own non-standard port), then queue the change."
+    echo "DNS first: point ${PANEL_DOMAIN} at this server. Behind Cloudflare"
+    echo "proxy only ports 443 or 8443 work — port ${PANEL_PORT} requires"
+    echo "DNS-only or direct access."
 fi

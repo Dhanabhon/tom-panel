@@ -135,13 +135,25 @@ func TestSettingsRejectsInvalidProviders(t *testing.T) {
 func TestEndpointChangeQueuesJobAndRefusesSiteHostname(t *testing.T) {
 	harness, _ := newSettingsHarness(t)
 	harness.stepUp(t)
-	recorder := harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=443&acme_email=tom@example.com")
+	// 4884 is the shipped default: no standard service association, so the
+	// panel stays out of automated port sweeps.
+	recorder := harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=4884&acme_email=tom@example.com")
 	if recorder.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	recorder = harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=9443&cloudflare_proxy=on")
+	// Cloudflare proxy limits the origin to its supported HTTPS ports.
+	recorder = harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=4884&cloudflare_proxy=on")
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "refused") {
-		t.Fatalf("cloudflare port rule not enforced: status=%d", recorder.Code)
+		t.Fatalf("cloudflare port rule not enforced for 4884: status=%d", recorder.Code)
+	}
+	recorder = harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=8443&cloudflare_proxy=on&acme_email=tom@example.com")
+	if recorder.Code != http.StatusSeeOther {
+		t.Fatalf("cloudflare-compatible port 8443 refused: status=%d", recorder.Code)
+	}
+	// Port 443 remains a deliberate choice without the proxy.
+	recorder = harness.post("/settings/endpoint", "mode=public&hostname=panel.example.com&port=443&acme_email=tom@example.com")
+	if recorder.Code != http.StatusSeeOther {
+		t.Fatalf("port 443 should remain allowed: status=%d", recorder.Code)
 	}
 }
 
