@@ -2,7 +2,24 @@
 
 TomPanel is an open-source, web-based control panel for managing a single Linux VPS. It is designed for one administrator, multiple websites, and a simple operations-first workflow.
 
-> TomPanel is under active development. The current codebase provides the control-plane foundation and is not ready for production hosting yet.
+> **Early access (v0.1.0)** — TomPanel is under active development. The MVP is feature-complete and passed a 10/10 acceptance drill on a real Ubuntu 24.04 VM, but this release is for **evaluation**, not production hosting. Expect breaking changes throughout the 0.x series, always keep backups, and review [the changelog](CHANGELOG.md) before upgrading.
+
+## Early access — what that means
+
+| | Status |
+| --- | --- |
+| Install, first-run wizard, panel, all MVP features | ✅ Shipped and verified on a real VM |
+| VM acceptance drill (10 checks on real Ubuntu 24.04) | ✅ Passed |
+| Reproducible `.deb` + bootstrap one-command install | ✅ Released |
+| Signed panel updates (Ed25519 key ceremony) | ⏳ Pending — updates fail closed until the operator installs a release key |
+| Production data hosting | ⛔ Not yet — evaluate on disposable servers first |
+
+During early access:
+
+- **Breaking changes are expected** in every 0.x release — read the changelog before upgrading.
+- **Always keep off-server backups** of anything important (Backups → S3/R2 encrypted upload).
+- **Report anything unusual** — [the docs](https://dhanabhon.github.io/tom-panel/) and the built-in `tompanel doctor` cover most diagnosis.
+- The **docs site** is live at [dhanabhon.github.io/tom-panel](https://dhanabhon.github.io/tom-panel/) (English and Thai).
 
 ## Quick start
 
@@ -47,12 +64,12 @@ sh tompanel-bootstrap.sh --offline ./tompanel_1.2.0_amd64.deb
 - Guarded WordPress and Laravel installers with fixed deployment pipelines
 - Health endpoint at `/healthz`
 
-## MVP roadmap
+## Roadmap after 0.1.0
 
-- WordPress-specific cache controls and object cache polish
-- Backups and restore, service and log views
-- Optional Cloudflare integration
-- Packaging, installer scripts, and VM acceptance testing
+- First-run setup wizard: guided domain binding with live DNS verification
+- Signed update pipeline activation (release key ceremony)
+- Debian and Raspberry Pi OS targets
+- Performance hardening for 512 MB–1 GB hosts beyond swap
 
 ## Supported platform
 
@@ -133,9 +150,9 @@ tompanel -config /etc/tompanel/config.toml setup-url
 ## Security notes
 
 - Do not expose the loopback HTTP listener directly to the internet.
-- Use an SSH tunnel or a correctly configured HTTPS reverse proxy.
+- Use an SSH tunnel or the guided public HTTPS endpoint (Settings → Panel endpoint).
 - Keep `/etc/tompanel/master.key` readable only by the TomPanel service account.
-- Run the privileged helper only through the supported service configuration once installer packaging is available.
+- Panel updates are signed (Ed25519) and fail closed until the operator installs the release key — see `docs/release-signing.md`.
 
 ## Operations and release
 
@@ -146,7 +163,7 @@ tompanel -config /etc/tompanel/config.toml setup-url
 - Signed (Ed25519) transactional panel updates with snapshot rollback; see `docs/release-signing.md`
 - Debian packaging, guided installer, and CI in `packaging/`, `scripts/`, and `.github/workflows/`
 
-## Development
+## Verification
 
 ```bash
 go test ./...                                       # unit and integration tests
@@ -161,10 +178,11 @@ workflow re-verifies this before attaching artifacts.
 
 ## Project status
 
-The MVP slice is feature-complete pending the full VM acceptance drill
-(`sudo ./scripts/acceptance-ubuntu-2404.sh` on a fresh Ubuntu 24.04 host)
-and a signed release build. Review and test before using it on a server
-that contains important data.
+**v0.1.0 early access is released.** The full VM acceptance drill passed
+10/10 on a fresh Ubuntu 24.04 host (`scripts/acceptance-ubuntu-2404.sh`),
+and the release `.deb` is attached to
+[the GitHub release](https://github.com/Dhanabhon/tom-panel/releases/tag/v0.1.0).
+Review and test before using it on a server that contains important data.
 
 ## License
 
