@@ -105,13 +105,6 @@ if [ -z "$OFFLINE" ]; then
     fail "could not download the installer for $VERSION"
 fi
 
-note "downloading the installer shipped with $VERSION"
-curl -fsSL -o "$work/install.sh" \
-  "https://raw.githubusercontent.com/$REPO/$VERSION/scripts/install.sh" ||
-  curl -fsSL -o "$work/install.sh" \
-    "https://github.com/$REPO/releases/download/$VERSION/install.sh" ||
-  fail "could not download the installer for $VERSION"
-
 if [ -n "$CHECK" ]; then
   note "running preflight only (no changes will be made)"
   TOMPANEL_CHECK=1 sh "$work/install.sh" "$work/package.deb"
