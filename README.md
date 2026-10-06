@@ -2,7 +2,9 @@
 
 TomPanel is an open-source, web-based control panel for managing a single Linux VPS. It is designed for one administrator, multiple websites, and a simple operations-first workflow.
 
-> **Early access (v0.1.0)** — TomPanel is under active development. The MVP is feature-complete and passed a 10/10 acceptance drill on a real Ubuntu 24.04 VM, but this release is for **evaluation**, not production hosting. Expect breaking changes throughout the 0.x series, always keep backups, and review [the changelog](CHANGELOG.md) before upgrading.
+> [!WARNING]
+> **Under active development — not ready for production hosting.**
+> v0.1.0 is an early-access release: the MVP is feature-complete and passed a 10/10 acceptance drill on a real Ubuntu 24.04 VM, but it is intended for **evaluation on disposable servers only**. Do not host anything you cannot afford to lose. Expect breaking changes throughout the 0.x series, always keep off-server backups, and review [the changelog](CHANGELOG.md) before upgrading.
 
 ## Early access — what that means
 
