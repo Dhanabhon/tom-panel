@@ -1,7 +1,7 @@
 [Unit]
 Description=TomPanel web control panel
-After=network.target mariadb.service
-Requires=tompanel-agent.socket
+After=network.target mariadb.service tomlpanel-agent.service
+Wants=tompanel-agent.service
 
 [Service]
 Type=simple

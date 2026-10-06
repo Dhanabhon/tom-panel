@@ -29,7 +29,9 @@ if [ -f /etc/nginx/sites-enabled/default ] && grep -q "default_server" /etc/ngin
 fi
 
 MEMORY_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
-[ "$MEMORY_MB" -ge 1024 ] || fail "at least 1 GB of memory is required"
+# 1 GB-class plans report ~960 MB of total memory, so the floor is 900 MB —
+# the 2 GB swap created below carries the rest for MariaDB and the panel.
+[ "$MEMORY_MB" -ge 900 ] || fail "at least 900 MB of memory is required (got ${MEMORY_MB} MB)"
 ROOT_GB=$(df -BG / | awk 'NR==2 {gsub("G",""); print $4}')
 [ "$ROOT_GB" -ge 10 ] || fail "at least 10 GB of free disk is required"
 

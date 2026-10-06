@@ -27,6 +27,10 @@ func TestUnitsKeepWebDaemonUnprivileged(t *testing.T) {
 	if strings.Contains(unit, "User=root") {
 		t.Fatal("web daemon must not run as root")
 	}
+	// A Requires= on a unit we never ship bricks the panel at boot.
+	if strings.Contains(unit, "tompanel-agent.socket") {
+		t.Fatal("panel unit must not depend on a nonexistent socket unit")
+	}
 }
 
 func TestAgentUnitIsHardened(t *testing.T) {
