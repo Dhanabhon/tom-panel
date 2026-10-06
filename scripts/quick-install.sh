@@ -23,8 +23,12 @@ step "Checking prerequisites"
 [ "$(uname -m)" = "x86_64" ] || fail "only AMD64 is supported"
 # shellcheck source=/dev/null
 . /etc/os-release
-[ "$ID" = "ubuntu" ] && [ "$VERSION_ID" = "24.04" ] || fail "only Ubuntu 24.04 LTS"
-[ ! -d /etc/tompanel ] || fail "/etc/tompanel already exists — uninstall first"
+if [ "$ID" != "ubuntu" ] || [ "$VERSION_ID" != "24.04" ]; then
+    fail "only Ubuntu 24.04 LTS"
+fi
+if [ -d /etc/tompanel ]; then
+    fail "/etc/tompanel already exists — uninstall first"
+fi
 command -v docker >/dev/null 2>&1 || fail "Docker is required (apt-get install docker.io)"
 docker info >/dev/null 2>&1 || fail "Docker daemon is not running"
 MEMORY_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
@@ -74,7 +78,7 @@ ok "Panel is healthy"
 # ── Generate setup URL ────────────────────────────────────
 step "Generating one-time setup URL"
 SERVER_IP=$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
-SETUP_URL=$(runuser -u tompanel -- /usr/lib/tompanel/tompanel -config /etc/tompanel/config.toml setup-url 2>/dev/null | grep -o 'http://[^ ]*' || true)
+SETUP_URL=$(runuser -u tompanel -- /usr/lib/tompanel/tompanel -config /etc/tompanel/config.toml setup-url 2>/dev/null | grep -o 'http://[^[:space:]]*' || true)
 
 # ── Ready card ────────────────────────────────────────────
 echo
