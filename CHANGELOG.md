@@ -5,7 +5,7 @@ All notable changes to TomPanel are documented here. The format follows
 [SemVer](https://semver.org/) — during the 0.x series, minor versions may
 contain breaking changes.
 
-## [0.1.0] - unreleased — Early access
+## [0.1.0] - 2026-10-06 — Early access
 
 The first early-access release: a complete single-admin hosting panel for one
 Ubuntu Server 24.04 LTS (AMD64) machine, reached through an SSH tunnel or a
