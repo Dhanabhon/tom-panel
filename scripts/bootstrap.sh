@@ -54,16 +54,19 @@ command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required"
 [ "$(id -u)" = "0" ] || fail "run as root (the installer configures the host)"
 
 work="$(mktemp -d /tmp/tompanel-bootstrap.XXXXXX)"
+PACKAGE_PATH=""
 trap 'rm -rf "$work"' EXIT
 
 if [ -n "$OFFLINE" ] && [ -n "$CHECK" ]; then
   fail "--check with --offline is not supported; run scripts/install.sh from the repository with TOMPANEL_CHECK=1 instead"
 fi
 
+PACKAGE_PATH="$work/package.deb"
+
 if [ -n "$OFFLINE" ]; then
   [ -f "$OFFLINE" ] || fail "offline package $OFFLINE not found"
   note "using offline package $OFFLINE"
-  cp "$OFFLINE" "$work/package.deb"
+  cp "$OFFLINE" "$PACKAGE_PATH"
   if [ -f "$OFFLINE.sha256" ]; then
     (cd "$(dirname "$OFFLINE")" && sha256sum -c "$(basename "$OFFLINE").sha256") \
       || fail "offline checksum mismatch; refusing to install"
@@ -92,6 +95,7 @@ else
       "$base/tompanel_${asset_version}_amd64.deb.sha256"
     (cd "$work" && sha256sum -c "tompanel_${asset_version}_amd64.deb.sha256") \
       || fail "checksum mismatch; refusing to install"
+    PACKAGE_PATH="$work/tompanel_${asset_version}_amd64.deb"
     note "checksum verified"
   fi
 fi
@@ -107,12 +111,12 @@ fi
 
 if [ -n "$CHECK" ]; then
   note "running preflight only (no changes will be made)"
-  TOMPANEL_CHECK=1 sh "$work/install.sh" "$work/package.deb"
+  TOMPANEL_CHECK=1 sh "$work/install.sh" "$PACKAGE_PATH"
   exit 0
 fi
 
 note "handing off to the installer"
-sh "$work/install.sh" "$work/package.deb"
+sh "$work/install.sh" "$PACKAGE_PATH"
 
 config=/etc/tompanel/config.toml
 echo
