@@ -55,6 +55,7 @@ func NewSettingsHandlers(authService *auth.Service, integrationService *integrat
 		return authService.RequireSession(authService.RequireStepUp(authService.RequireCSRF(next)))
 	}
 	h.mux.Handle("GET /settings", session(http.HandlerFunc(h.page)))
+	h.mux.Handle("GET /api/dns-check", session(http.HandlerFunc(h.dnsCheck)))
 	h.mux.Handle("POST /settings/cloudflare", stepUp(http.HandlerFunc(h.saveCloudflare)))
 	h.mux.Handle("POST /settings/s3", stepUp(http.HandlerFunc(h.saveS3)))
 	h.mux.Handle("POST /settings/smtp", stepUp(http.HandlerFunc(h.saveSMTP)))

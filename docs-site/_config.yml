@@ -1,0 +1,4 @@
+theme: jekyll-theme-cayman
+title: TomPanel
+description: Single-admin VPS control panel — documentation
+markdown: kramdown

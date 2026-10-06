@@ -244,6 +244,7 @@ func New(cfg config.Config) (*App, error) {
 		"GET /settings", "POST /settings/cloudflare", "POST /settings/s3", "POST /settings/smtp",
 		"POST /settings/endpoint", "POST /settings/cloudflare/test",
 		"POST /settings/s3/test", "POST /settings/smtp/test",
+		"GET /api/dns-check",
 	} {
 		mux.Handle(pattern, settingsRoutes.Handler())
 	}
